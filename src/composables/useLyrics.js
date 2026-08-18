@@ -69,6 +69,13 @@ function stripJpTrailingPunct(str) {
   return str.replace(JP_TRAILING_PUNCT_RE, '').trim()
 }
 
+// jeda minimal (detik) antar baris buat dianggap instrumental kalau LRC-nya
+// nggak eksplisit kasih baris kosong sebagai penanda
+const INSTRUMENTAL_GAP_THRESHOLD = 8
+// jarak dari akhir baris sebelumnya sebelum icon note dianggap mulai muncul,
+// ngasih waktu buat baris terakhir "kebaca" dulu sebelum berpindah ke ikon
+const INSTRUMENTAL_SETTLE_TIME = 4
+
 function parseLrc(lrcText) {
   const lines = []
   for (const raw of lrcText.split('\n')) {
@@ -78,9 +85,47 @@ function parseLrc(lrcText) {
     const ms = frac.length === 2 ? Number(frac) * 10 : Number(frac)
     const time = Number(mm) * 60 + Number(ss) + ms / 1000
     const clean = text.trim()
-    if (clean) lines.push({ time, text: clean })
+    // baris kosong (timestamp tanpa teks) SENGAJA dipertahankan, bukan dibuang —
+    // banyak sumber lirik ter-sinkron (LRCLIB, Musixmatch) memang menulis baris
+    // kosong buat nandain bagian instrumental / tanpa vokal
+    lines.push({ time, text: clean, isInstrumental: clean === '' })
   }
-  return lines.sort((a, b) => a.time - b.time)
+  lines.sort((a, b) => a.time - b.time)
+  return insertGapMarkers(lines)
+}
+
+// nambahin penanda instrumental sintetis di jeda panjang yang nggak punya
+// baris kosong eksplisit dari sumbernya
+function insertGapMarkers(lines) {
+  const result = []
+  for (let i = 0; i < lines.length; i++) {
+    result.push(lines[i])
+    const next = lines[i + 1]
+    const gapIsMarked = lines[i].isInstrumental || (next && next.isInstrumental)
+    if (next && !gapIsMarked && next.time - lines[i].time > INSTRUMENTAL_GAP_THRESHOLD) {
+      result.push({
+        time: lines[i].time + INSTRUMENTAL_SETTLE_TIME,
+        text: '',
+        isInstrumental: true,
+      })
+    }
+  }
+  return result
+}
+
+/**
+ * Cari baris yang lagi aktif di waktu tertentu — dipakai UI buat nentuin
+ * mau nampilin teks lirik atau ikon note (kalau isInstrumental true).
+ * @param {number} currentTime
+ * @param {Array<{time:number,text:string,isInstrumental:boolean}>} lines
+ */
+export function getActiveLine(currentTime, lines) {
+  let active = null
+  for (const line of lines) {
+    if (line.time > currentTime) break
+    active = line
+  }
+  return active
 }
 
 async function searchLrclib(params) {
