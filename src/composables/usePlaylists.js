@@ -69,6 +69,12 @@ export function usePlaylists() {
     playlist.tracks = playlist.tracks.filter((t) => t.id.videoId !== videoId)
   }
 
+  function reorderTracks(playlistId, tracks) {
+  const playlist = playlists.value.find((p) => p.id === playlistId)
+  if (!playlist) return
+  playlist.tracks = tracks
+  }
+
   return {
     playlists,
     createPlaylist,
@@ -77,5 +83,6 @@ export function usePlaylists() {
     isTrackInPlaylist,
     addTrackToPlaylist,
     removeTrackFromPlaylist,
+    reorderTracks,
   }
 }

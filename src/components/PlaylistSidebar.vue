@@ -35,33 +35,45 @@
 
       <p v-if="selected.tracks.length === 0" class="empty-hint">Playlist ini masih kosong.</p>
 
-      <ul v-else class="track-list">
-        <li
-          v-for="track in selected.tracks"
-          :key="track.id.videoId"
-          class="track-row"
-          :class="{ active: track.id.videoId === playingId }"
-        >
-          <img class="thumb" :src="track.snippet?.thumbnails?.default?.url" :alt="track.snippet?.title" />
-          <div class="track-meta" @click="$emit('play', track, selected)">
-            <span class="track-title">{{ track.snippet?.title }}</span>
-            <span class="track-channel">{{ track.snippet?.channelTitle }}</span>
-          </div>
-          <button
-            class="icon-btn danger"
-            title="Hapus dari playlist"
-            @click="removeTrackFromPlaylist(selected.id, track.id.videoId)"
-          >
-            ✕
-          </button>
-        </li>
-      </ul>
+      <draggable
+        v-else
+        v-model="orderedTracks"
+        :item-key="(track) => track.id.videoId"
+        handle=".drag-handle"
+        ghost-class="ghost-track"
+        drag-class="dragging-track"
+        :animation="200"
+        tag="ul"
+        class="track-list"
+      >
+        <template #item="{ element: track }">
+          <li class="track-row" :class="{ active: track.id.videoId === playingId }">
+            <span class="drag-handle" title="Seret untuk urutkan">
+              <GripVertical :size="14" :stroke-width="2" />
+            </span>
+            <img class="thumb" :src="track.snippet?.thumbnails?.default?.url" :alt="track.snippet?.title" />
+            <div class="track-meta" @click="$emit('play', track, selected)">
+              <span class="track-title">{{ track.snippet?.title }}</span>
+              <span class="track-channel">{{ track.snippet?.channelTitle }}</span>
+            </div>
+            <button
+              class="icon-btn danger"
+              title="Hapus dari playlist"
+              @click="removeTrackFromPlaylist(selected.id, track.id.videoId)"
+            >
+              ✕
+            </button>
+          </li>
+        </template>
+      </draggable>
     </div>
   </aside>
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
+import draggable from 'vuedraggable'
+import { GripVertical } from 'lucide-vue-next'
 import { usePlaylists } from '../composables/usePlaylists'
 
 defineProps({
@@ -69,7 +81,7 @@ defineProps({
 })
 const emit = defineEmits(['play'])
 
-const { playlists, createPlaylist, deletePlaylist, removeTrackFromPlaylist } = usePlaylists()
+const { playlists, createPlaylist, deletePlaylist, removeTrackFromPlaylist, reorderTracks } = usePlaylists()
 
 const newPlaylistName = ref('')
 const selected = ref(null)
@@ -82,6 +94,14 @@ watch(
   },
   { deep: true }
 )
+
+// v-model buat <draggable>: getter baca urutan sekarang, setter simpan urutan baru
+const orderedTracks = computed({
+  get: () => selected.value?.tracks ?? [],
+  set: (newOrder) => {
+    if (selected.value) reorderTracks(selected.value.id, newOrder)
+  },
+})
 
 function handleCreate() {
   createPlaylist(newPlaylistName.value)
@@ -128,9 +148,36 @@ function handlePlayAll() {
 .detail-title { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .play-all-btn { width: 100%; background: var(--coral); border: none; border-radius: 8px; color: var(--bg); font-weight: 600; font-size: 13px; padding: 10px; margin-bottom: 14px; cursor: pointer; }
 .play-all-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.track-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; }
+
+.track-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--surface);
+}
 .track-row:hover { background: var(--surface-hover); }
 .track-row.active { background: var(--surface-hover); outline: 1px solid var(--brass); }
+
+.drag-handle {
+  display: flex;
+  align-items: center;
+  color: var(--text-muted);
+  cursor: grab;
+  flex-shrink: 0;
+  touch-action: none;
+}
+.drag-handle:active { cursor: grabbing; }
+
+.ghost-track {
+  opacity: 0.35;
+}
+.dragging-track {
+  background: var(--surface-hover) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
 .thumb { width: 32px; height: 32px; border-radius: 4px; object-fit: cover; flex-shrink: 0; }
 .track-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; cursor: pointer; }
 .track-title { font-size: 12.5px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
