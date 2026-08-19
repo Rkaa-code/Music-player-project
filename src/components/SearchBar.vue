@@ -18,11 +18,43 @@ const query = ref('')
 const API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY
 
 function normalize(items) {
-  // endpoint videos (trending) bentuknya item.id = string,
-  // disamakan ke item.id.videoId biar konsisten sama endpoint search
   return items.map((item) => ({
     ...item,
     id: typeof item.id === 'string' ? { videoId: item.id } : item.id,
+  }))
+}
+
+function parseDuration(iso) {
+  // "PT3M45S" -> "3:45", "PT1H2M3S" -> "1:02:03"
+  const match = iso?.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/)
+  if (!match) return '0:00'
+
+  const h = parseInt(match[1] || 0)
+  const m = parseInt(match[2] || 0)
+  const s = parseInt(match[3] || 0)
+
+  if (h > 0) {
+    return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  }
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
+async function fetchDurations(items) {
+  const ids = items.map((item) => item.id.videoId).filter(Boolean).join(',')
+  if (!ids) return items
+
+  const url = `https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${ids}&key=${API_KEY}`
+  const res = await fetch(url)
+  const data = await res.json()
+
+  const durationMap = {}
+  ;(data.items || []).forEach((v) => {
+    durationMap[v.id] = parseDuration(v.contentDetails.duration)
+  })
+
+  return items.map((item) => ({
+    ...item,
+    duration: durationMap[item.id.videoId] || '0:00',
   }))
 }
 
@@ -45,7 +77,8 @@ async function search() {
   const data = await res.json()
 
   const validItems = normalize(data.items || []).filter((item) => item.id?.videoId)
-  emit('results', validItems)
+  const withDurations = await fetchDurations(validItems)
+  emit('results', withDurations)
 }
 
 async function fetchTrending() {
@@ -55,7 +88,8 @@ async function fetchTrending() {
   const data = await res.json()
 
   const validItems = normalize(data.items || []).filter((item) => item.id?.videoId)
-  emit('results', validItems)
+  const withDurations = await fetchDurations(validItems)
+  emit('results', withDurations)
 }
 
 onMounted(() => {

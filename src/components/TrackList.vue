@@ -19,6 +19,8 @@
         <span class="title">{{ item.snippet.title }}</span>
         <span class="channel">{{ item.snippet.channelTitle }}</span>
       </div>
+
+      <span class="duration">{{ item.duration || '0:00' }}</span>
     </li>
   </ul>
 </template>
@@ -42,7 +44,7 @@ defineEmits(['select'])
 
 li {
   display: grid;
-  grid-template-columns: 40px 40px 1fr;
+  grid-template-columns: 40px 40px 1fr 48px;
   align-items: center;
   gap: 14px;
   padding: 8px 16px;
@@ -145,5 +147,13 @@ img {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.duration {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: right;
+  pointer-events: none;
+  flex-shrink: 0;
 }
 </style>
