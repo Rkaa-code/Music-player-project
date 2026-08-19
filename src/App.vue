@@ -1,8 +1,10 @@
 <template>
+  <PlaylistSidebar :playing-id="currentTrack?.id?.videoId" @play="onPlaylistPlay" />
+
   <div class="app">
     <header class="app-header">
       <span class="eyebrow">Now Browsing</span>
-      <h1>Tukiyem Music</h1>
+      <h1>LRMusic</h1>
     </header>
 
     <SearchBar @results="onResults" @searching="isSearching = $event" />
@@ -18,7 +20,7 @@
       @select="onSelect"
     />
 
- <div id="player" style="display: none"></div>
+    <div id="player" style="display: none"></div>
     <PlayerBar
       :track="currentTrack"
       :is-playing="isPlaying"
@@ -28,7 +30,6 @@
       :shuffle="shuffle"
       :repeat-mode="repeatMode"
       :lyrics-open="lyricsOpen"
-      :playlist-open="playlistOpen"
       @toggle-play="togglePlay"
       @seek="seekTo"
       @volume-change="setVolume"
@@ -38,7 +39,6 @@
       @cycle-repeat="cycleRepeat"
       @show-detail="detailTrack = currentTrack"
       @toggle-lyrics="lyricsOpen = !lyricsOpen"
-      @toggle-playlist="playlistOpen = !playlistOpen"
     />
 
     <TrackDetailModal
@@ -53,14 +53,6 @@
       @close="lyricsOpen = false"
       @seek="seekTo"
     />
-
-    <PlaylistPanel
-      :open="playlistOpen"
-      :current-track="currentTrack"
-      :playing-id="currentTrack?.id?.videoId"
-      @close="playlistOpen = false"
-      @play="onPlaylistPlay"
-    />
   </div>
 </template>
 
@@ -71,7 +63,7 @@ import TrackList from './components/TrackList.vue'
 import PlayerBar from './components/PlayerBar.vue'
 import TrackDetailModal from './components/TrackDetailModal.vue'
 import LyricsPanel from './components/LyricsPanel.vue'
-import PlaylistPanel from './components/PlaylistPanel.vue'
+import PlaylistSidebar from './components/PlaylistSidebar.vue'
 import { useYoutubePlayer } from './composables/useYoutubePlayer'
 
 const tracks = ref([])
@@ -80,7 +72,6 @@ const shuffle = ref(false)
 const repeatMode = ref('off')
 const detailTrack = ref(null)
 const lyricsOpen = ref(false)
-const playlistOpen = ref(false)
 
 // antrian aktif untuk next/prev — bisa berisi hasil pencarian ATAU isi playlist,
 // tergantung dari mana lagu terakhir dipilih
@@ -120,11 +111,10 @@ function onSelect(track) {
   playTrack(track)
 }
 
-// pilih lagu dari dalam sebuah playlist -> antrian = isi playlist itu
+// pilih lagu dari dalam sebuah playlist (sidebar) -> antrian = isi playlist itu
 function onPlaylistPlay(track, playlist) {
   queue.value = playlist.tracks
   playTrack(track)
-  playlistOpen.value = false
 }
 
 function currentIndex() {
@@ -207,6 +197,7 @@ body {
   width: 100%;
   max-width: 900px;
   margin: 0 auto;
+  margin-left: 260px;
   padding: 24px clamp(16px, 4vw, 48px) 130px;
   font-family: 'Inter', sans-serif;
 }
@@ -250,5 +241,11 @@ h1 {
   text-transform: uppercase;
   color: var(--text-muted);
   margin: 0 0 12px 4px;
+}
+
+@media (max-width: 720px) {
+  .app {
+    margin-left: 0;
+  }
 }
 </style>

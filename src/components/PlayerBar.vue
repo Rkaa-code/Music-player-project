@@ -75,14 +75,7 @@
       </div>
 
       <div class="right-group">
-        <button
-          class="ctrl-btn playlist-btn"
-          :class="{ active: playlistOpen }"
-          title="Playlist"
-          @click="$emit('toggle-playlist')"
-        >
-          <ListMusic :size="16" :stroke-width="2" />
-        </button>
+        <AddToPlaylistMenu :track="track" />
 
         <button
           class="ctrl-btn lyrics-btn"
@@ -128,8 +121,8 @@ import {
   Volume1,
   VolumeX,
   Mic2,
-  ListMusic,
 } from 'lucide-vue-next'
+import AddToPlaylistMenu from './AddToPlaylistMenu.vue'
 
 const props = defineProps({
   track: { type: Object, default: null },
@@ -140,7 +133,6 @@ const props = defineProps({
   shuffle: { type: Boolean, default: false },
   repeatMode: { type: String, default: 'off' }, // 'off' | 'all' | 'one'
   lyricsOpen: { type: Boolean, default: false },
-  playlistOpen: { type: Boolean, default: false },
 })
 
 const emit = defineEmits([
@@ -153,7 +145,6 @@ const emit = defineEmits([
   'cycle-repeat',
   'show-detail',
   'toggle-lyrics',
-  'toggle-playlist',
 ])
 
 function formatTime(seconds) {
@@ -192,7 +183,6 @@ const seekPercent = computed(() => {
   z-index: 10;
 }
 
-/* isi bar dibatasi lebarnya & dicenter, background bar tetap full-width */
 .player-bar-inner {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) minmax(0, 2fr) minmax(180px, 1fr);
@@ -227,8 +217,6 @@ const seekPercent = computed(() => {
   background: #0c0f10;
   transform: translateY(-50%);
   transition: transform 0.2s ease;
-  /* drop shadow di luar + bevel tipis di tepi (terang di atas, gelap di bawah)
-     biar kerasa punya ketebalan fisik, bukan lingkaran flat */
   box-shadow:
     0 3px 10px rgba(0, 0, 0, 0.5),
     inset 0 0 0 1px rgba(255, 255, 255, 0.05),
@@ -244,8 +232,6 @@ const seekPercent = computed(() => {
   position: absolute;
   inset: 3px;
   border-radius: 50%;
-  /* gradasi radial di atas grooves biar bagian tengah sedikit lebih terang
-     dari tepi, mensimulasikan cahaya ambient jatuh ke piringan */
   background:
     radial-gradient(circle at 38% 32%, rgba(255, 255, 255, 0.06), transparent 55%),
     repeating-radial-gradient(
@@ -266,14 +252,11 @@ const seekPercent = computed(() => {
   border: 1px solid #2a2f30;
 }
 
-/* pita groove luar, dekat tepi label */
 .vinyl-ring-outer {
   width: 80%;
   height: 80%;
 }
 
-/* pita groove kedua, sedikit lebih rapat ke label — piringan asli biasanya
-   punya lebih dari satu pita groove yang terlihat */
 .vinyl-ring-inner {
   width: 46%;
   height: 46%;
@@ -295,7 +278,6 @@ const seekPercent = computed(() => {
   justify-content: center;
 }
 
-/* lubang spindle di tengah label, kayak piringan vinyl asli */
 .vinyl-hole {
   width: 26%;
   height: 26%;
@@ -304,9 +286,6 @@ const seekPercent = computed(() => {
   box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.7);
 }
 
-/* sapuan cahaya/kilau — sengaja dipisah dari .vinyl biar TIDAK ikut rotate.
-   di piringan nyata, kilau itu refleksi sumber cahaya yang posisinya tetap
-   di mata kita walau piringannya muter, bukan bagian fisik piringan */
 .vinyl-sheen {
   position: absolute;
   top: 50%;
@@ -544,7 +523,6 @@ input[type='range']:focus-visible {
   flex-shrink: 0;
 }
 
-.playlist-btn,
 .lyrics-btn {
   width: 30px;
   height: 30px;
