@@ -26,7 +26,23 @@
     <div v-else class="sidebar-view detail-view">
       <div class="sidebar-header detail-header">
         <button class="icon-btn" title="Kembali" @click="selected = null">←</button>
-        <h2 class="detail-title">{{ selected.name }}</h2>
+
+        <form v-if="isEditingName" class="rename-form" @submit.prevent="handleRenameSave">
+          <input
+            ref="renameInputEl"
+            v-model="editedName"
+            type="text"
+            maxlength="60"
+            @keydown.esc="cancelRename"
+            @blur="handleRenameSave"
+          />
+        </form>
+        <template v-else>
+          <h2 class="detail-title">{{ selected.name }}</h2>
+          <button class="icon-btn" title="Ganti nama" @click="startRename">
+            <Pencil :size="13" :stroke-width="2" />
+          </button>
+        </template>
       </div>
 
       <button class="play-all-btn" :disabled="selected.tracks.length === 0" @click="handlePlayAll">
@@ -71,9 +87,9 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import draggable from 'vuedraggable'
-import { GripVertical } from 'lucide-vue-next'
+import { GripVertical, Pencil } from 'lucide-vue-next'
 import { usePlaylists } from '../composables/usePlaylists'
 
 defineProps({
@@ -81,10 +97,15 @@ defineProps({
 })
 const emit = defineEmits(['play'])
 
-const { playlists, createPlaylist, deletePlaylist, removeTrackFromPlaylist, reorderTracks } = usePlaylists()
+const { playlists, createPlaylist, deletePlaylist, renamePlaylist, removeTrackFromPlaylist, reorderTracks } =
+  usePlaylists()
 
 const newPlaylistName = ref('')
 const selected = ref(null)
+
+const isEditingName = ref(false)
+const editedName = ref('')
+const renameInputEl = ref(null)
 
 // kalau playlist yang lagi dibuka kebetulan terhapus, otomatis balik ke daftar
 watch(
@@ -115,6 +136,27 @@ function handleDeletePlaylist(pl) {
 function handlePlayAll() {
   if (selected.value.tracks.length > 0) emit('play', selected.value.tracks[0], selected.value)
 }
+
+async function startRename() {
+  editedName.value = selected.value.name
+  isEditingName.value = true
+  await nextTick()
+  renameInputEl.value?.focus()
+  renameInputEl.value?.select()
+}
+
+function handleRenameSave() {
+  if (!isEditingName.value) return // cegah blur ganda kepanggil setelah esc/submit
+  const trimmed = editedName.value.trim()
+  if (trimmed && trimmed !== selected.value.name) {
+    renamePlaylist(selected.value.id, trimmed)
+  }
+  isEditingName.value = false
+}
+
+function cancelRename() {
+  isEditingName.value = false
+}
 </script>
 
 <style scoped>
@@ -141,11 +183,35 @@ function handlePlayAll() {
 .playlist-info { display: flex; flex-direction: column; min-width: 0; }
 .playlist-name { font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .playlist-count { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted); }
-.icon-btn { background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 13px; line-height: 1; padding: 4px; border-radius: 4px; }
+.icon-btn { background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 13px; line-height: 1; padding: 4px; border-radius: 4px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
 .icon-btn:hover { color: var(--text); background: var(--bg); }
 .icon-btn.danger:hover { color: var(--coral); }
-.detail-header { gap: 10px; }
-.detail-title { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.detail-header { gap: 6px; }
+.detail-title {
+  font-size: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.rename-form {
+  flex: 1;
+  min-width: 0;
+}
+.rename-form input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--brass);
+  border-radius: 6px;
+  padding: 4px 8px;
+  color: var(--text);
+  font-family: 'Fraunces', serif;
+  font-size: 15px;
+}
+
 .play-all-btn { width: 100%; background: var(--coral); border: none; border-radius: 8px; color: var(--bg); font-weight: 600; font-size: 13px; padding: 10px; margin-bottom: 14px; cursor: pointer; }
 .play-all-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
@@ -170,9 +236,7 @@ function handlePlayAll() {
 }
 .drag-handle:active { cursor: grabbing; }
 
-.ghost-track {
-  opacity: 0.35;
-}
+.ghost-track { opacity: 0.35; }
 .dragging-track {
   background: var(--surface-hover) !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);

@@ -6,6 +6,16 @@
           <div class="cover-wrap" @click="$emit('play', track)">
             <img class="cover" :src="coverUrl" :alt="track.snippet.title" />
 
+            <iframe
+              v-if="mountPreview"
+              class="cover-preview"
+              :class="{ 'is-visible': showPreview }"
+              :src="previewSrc"
+              frameborder="0"
+              allow="autoplay; encrypted-media"
+              tabindex="-1" 
+              />
+
             <button class="close-btn" @click.stop="$emit('close')" aria-label="Tutup">
               <X :size="16" />
             </button>
@@ -60,7 +70,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { X, Play } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -72,6 +82,95 @@ defineEmits(['close', 'play'])
 const coverUrl = computed(() => {
   const thumbs = props.track?.snippet?.thumbnails
   return thumbs?.high?.url || thumbs?.medium?.url || thumbs?.default?.url
+})
+
+// siklus: cover statis -> (preload video tersembunyi) -> fade-in video ->
+// video terlihat penuh beberapa detik -> fade-out -> balik ke cover -> ulang
+const PREVIEW_START = 15
+const PREVIEW_END = 45 // window klip di-embed lebih lebar dari waktu tampil, biar ada slack loading
+const STATIC_DURATION_MS = 8000 // durasi cover statis sebelum preview berikutnya
+const PRELOAD_MS = 1200 // video dimuat/buffering dulu tersembunyi sebelum fade-in ditrigger
+const PREVIEW_VISIBLE_MS = 7000 // durasi video BENAR-BENAR terlihat penuh (5–8 detik)
+const FADE_MS = 600 // harus sama dengan durasi transition di CSS .preview-fade
+
+const mountPreview = ref(false) // iframe ada di DOM (loading) atau tidak
+const showPreview = ref(false) // iframe di-fade-in (opacity 1) atau tidak
+
+let timers = []
+function schedule(fn, delay) {
+  timers.push(setTimeout(fn, delay))
+}
+function clearTimers() {
+  timers.forEach(clearTimeout)
+  timers = []
+}
+
+function runCycle() {
+  // fase 1: cover statis tampil
+  schedule(() => {
+    // fase 2: mount iframe tersembunyi, biarkan video mulai buffering/muter
+    mountPreview.value = true
+
+    schedule(() => {
+      // fase 3: fade-in — video sudah punya waktu buffer, jadi begitu muncul langsung mulus
+      showPreview.value = true
+
+      schedule(() => {
+        // fase 4: fade-out balik ke cover
+        showPreview.value = false
+
+        schedule(() => {
+          // fase 5: lepas iframe dari DOM, ulangi siklus dari awal
+          mountPreview.value = false
+          runCycle()
+        }, FADE_MS)
+      }, PREVIEW_VISIBLE_MS)
+    }, PRELOAD_MS)
+  }, STATIC_DURATION_MS)
+}
+
+function startCycle() {
+  mountPreview.value = false
+  showPreview.value = false
+  runCycle()
+}
+
+function stopCycle() {
+  clearTimers()
+  mountPreview.value = false
+  showPreview.value = false
+}
+
+watch(
+  () => props.track?.id?.videoId,
+  (videoId) => {
+    stopCycle()
+    if (videoId) startCycle()
+  },
+  { immediate: true }
+)
+
+onBeforeUnmount(stopCycle)
+
+const previewSrc = computed(() => {
+  const videoId = props.track?.id?.videoId
+  if (!videoId) return ''
+  const params = new URLSearchParams({
+    autoplay: '1',
+    mute: '1',
+    controls: '0',
+    start: String(PREVIEW_START),
+    end: String(PREVIEW_END),
+    loop: '1',
+    playlist: videoId,
+    modestbranding: '1',
+    rel: '0',
+    iv_load_policy: '3',
+    disablekb: '1',
+    fs: '0',
+    playsinline: '1',
+  })
+  return `https://www.youtube-nocookie.com/embed/${videoId}?${params.toString()}`
 })
 
 function formatDate(isoString) {
@@ -135,6 +234,30 @@ function formatDate(isoString) {
   display: block;
 }
 
+.cover-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.6s ease; /* FADE_MS di JS harus sama dengan angka ini (600ms) */
+}
+
+.cover-preview.is-visible {
+  opacity: 1;
+}
+
+.preview-fade-enter-active,
+.preview-fade-leave-active {
+  transition: opacity 0.6s ease;
+}
+.preview-fade-enter-from,
+.preview-fade-leave-to {
+  opacity: 0;
+}
+
 .close-btn {
   position: absolute;
   top: 16px;
@@ -174,6 +297,7 @@ function formatDate(isoString) {
   opacity: 0;
   transform: translateX(-4px);
   transition: opacity 0.18s ease, transform 0.18s ease;
+  z-index: 2;
 }
 
 .cover-wrap:hover .cover-play {
@@ -188,6 +312,7 @@ function formatDate(isoString) {
   bottom: 0;
   padding: 48px 28px 22px;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.55) 60%, transparent);
+  z-index: 2;
 }
 
 .channel {
@@ -347,7 +472,8 @@ function formatDate(isoString) {
   .modal-fade-enter-active,
   .modal-fade-leave-active,
   .modal-fade-enter-active .modal,
-  .modal-fade-leave-active .modal {
+  .modal-fade-leave-active .modal,
+  .cover-preview {
     transition: none !important;
   }
 }
