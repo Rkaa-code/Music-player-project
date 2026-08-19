@@ -76,6 +76,15 @@
 
       <div class="right-group">
         <button
+          class="ctrl-btn playlist-btn"
+          :class="{ active: playlistOpen }"
+          title="Playlist"
+          @click="$emit('toggle-playlist')"
+        >
+          <ListMusic :size="16" :stroke-width="2" />
+        </button>
+
+        <button
           class="ctrl-btn lyrics-btn"
           :class="{ active: lyricsOpen }"
           title="Lirik"
@@ -119,6 +128,7 @@ import {
   Volume1,
   VolumeX,
   Mic2,
+  ListMusic,
 } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -130,6 +140,7 @@ const props = defineProps({
   shuffle: { type: Boolean, default: false },
   repeatMode: { type: String, default: 'off' }, // 'off' | 'all' | 'one'
   lyricsOpen: { type: Boolean, default: false },
+  playlistOpen: { type: Boolean, default: false },
 })
 
 const emit = defineEmits([
@@ -142,6 +153,7 @@ const emit = defineEmits([
   'cycle-repeat',
   'show-detail',
   'toggle-lyrics',
+  'toggle-playlist',
 ])
 
 function formatTime(seconds) {
@@ -528,10 +540,11 @@ input[type='range']:focus-visible {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 14px;
+  gap: 12px;
   flex-shrink: 0;
 }
 
+.playlist-btn,
 .lyrics-btn {
   width: 30px;
   height: 30px;

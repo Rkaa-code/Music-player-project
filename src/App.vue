@@ -28,6 +28,7 @@
       :shuffle="shuffle"
       :repeat-mode="repeatMode"
       :lyrics-open="lyricsOpen"
+      :playlist-open="playlistOpen"
       @toggle-play="togglePlay"
       @seek="seekTo"
       @volume-change="setVolume"
@@ -37,12 +38,13 @@
       @cycle-repeat="cycleRepeat"
       @show-detail="detailTrack = currentTrack"
       @toggle-lyrics="lyricsOpen = !lyricsOpen"
+      @toggle-playlist="playlistOpen = !playlistOpen"
     />
 
     <TrackDetailModal
       :track="detailTrack"
       @close="detailTrack = null"
-      @play="(t) => { playTrack(t); detailTrack = null }"
+      @play="(t) => { onSelect(t); detailTrack = null }"
     />
 
     <LyricsPanel
@@ -51,16 +53,25 @@
       @close="lyricsOpen = false"
       @seek="seekTo"
     />
+
+    <PlaylistPanel
+      :open="playlistOpen"
+      :current-track="currentTrack"
+      :playing-id="currentTrack?.id?.videoId"
+      @close="playlistOpen = false"
+      @play="onPlaylistPlay"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted } from 'vue'
 import SearchBar from './components/SearchBar.vue'
 import TrackList from './components/TrackList.vue'
 import PlayerBar from './components/PlayerBar.vue'
 import TrackDetailModal from './components/TrackDetailModal.vue'
 import LyricsPanel from './components/LyricsPanel.vue'
+import PlaylistPanel from './components/PlaylistPanel.vue'
 import { useYoutubePlayer } from './composables/useYoutubePlayer'
 
 const tracks = ref([])
@@ -69,6 +80,11 @@ const shuffle = ref(false)
 const repeatMode = ref('off')
 const detailTrack = ref(null)
 const lyricsOpen = ref(false)
+const playlistOpen = ref(false)
+
+// antrian aktif untuk next/prev — bisa berisi hasil pencarian ATAU isi playlist,
+// tergantung dari mana lagu terakhir dipilih
+const queue = ref([])
 
 const {
   initPlayer,
@@ -94,35 +110,41 @@ onEnded(() => {
   playNext()
 })
 
-// kalau lagu ganti (next/prev/pilih lain), panel lirik tetap terbuka
-// dan otomatis nyari lirik lagu yang baru lewat prop currentTrack
-
 function onResults(results) {
   tracks.value = results
 }
 
+// pilih lagu dari hasil pencarian/trending -> antrian = daftar itu
 function onSelect(track) {
+  queue.value = tracks.value
   playTrack(track)
+}
+
+// pilih lagu dari dalam sebuah playlist -> antrian = isi playlist itu
+function onPlaylistPlay(track, playlist) {
+  queue.value = playlist.tracks
+  playTrack(track)
+  playlistOpen.value = false
 }
 
 function currentIndex() {
   if (!currentTrack.value) return -1
-  return tracks.value.findIndex((t) => t.id.videoId === currentTrack.value.id.videoId)
+  return queue.value.findIndex((t) => t.id.videoId === currentTrack.value.id.videoId)
 }
 
 function playNext() {
-  if (tracks.value.length === 0) return
+  if (queue.value.length === 0) return
 
   if (shuffle.value) {
-    const randomIdx = Math.floor(Math.random() * tracks.value.length)
-    playTrack(tracks.value[randomIdx])
+    const randomIdx = Math.floor(Math.random() * queue.value.length)
+    playTrack(queue.value[randomIdx])
     return
   }
 
   const idx = currentIndex()
   let nextIdx = idx + 1
 
-  if (nextIdx >= tracks.value.length) {
+  if (nextIdx >= queue.value.length) {
     if (repeatMode.value === 'all') {
       nextIdx = 0
     } else {
@@ -130,20 +152,20 @@ function playNext() {
     }
   }
 
-  playTrack(tracks.value[nextIdx])
+  playTrack(queue.value[nextIdx])
 }
 
 function playPrevious() {
-  if (tracks.value.length === 0) return
+  if (queue.value.length === 0) return
 
   const idx = currentIndex()
   let prevIdx = idx - 1
 
   if (prevIdx < 0) {
-    prevIdx = repeatMode.value === 'all' ? tracks.value.length - 1 : 0
+    prevIdx = repeatMode.value === 'all' ? queue.value.length - 1 : 0
   }
 
-  playTrack(tracks.value[prevIdx])
+  playTrack(queue.value[prevIdx])
 }
 
 function toggleShuffle() {
