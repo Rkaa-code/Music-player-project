@@ -546,16 +546,128 @@ input[type='range']:focus-visible {
   width: 90px;
 }
 
-@media (max-width: 480px) {
+/* ===== Tablet & kecil ===== */
+@media (max-width: 768px) {
+  .player-bar-inner {
+    grid-template-columns: minmax(140px, 1fr) minmax(0, 1.6fr) auto;
+    gap: 10px;
+    padding: 0 14px;
+  }
+
+  .volume-bar {
+    width: 70px;
+  }
+}
+
+/* ===== HP: susun ulang jadi 2 baris, semua fitur tetap ada ===== */
+@media (max-width: 640px) {
+  .player-bar {
+    height: auto;
+    padding: 8px 0 6px;
+  }
+
+  .player-bar-inner {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    grid-template-areas:
+      "seek seek seek seek"
+      "now  ctrl ctrl right";
+    align-items: center;
+    row-gap: 6px;
+    column-gap: 8px;
+    padding: 0 10px;
+    max-width: none;
+  }
+
+  /* .center jadi wrapper transparan biar anak-anaknya bisa ditempatin manual di grid */
+  .center {
+    display: contents;
+  }
+
+  .progress-row {
+    grid-area: seek;
+    gap: 6px;
+  }
+
+  .time {
+    font-size: 10px;
+    min-width: 28px;
+  }
+
+  .now-playing {
+    grid-area: now;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .art-wrap {
+    width: 40px;
+    height: 40px;
+  }
+
+  .vinyl,
+  .vinyl-sheen {
+    width: 36px;
+    height: 36px;
+    left: 10px;
+  }
+
+  .cover {
+    width: 30px;
+    height: 30px;
+  }
+
+  .info {
+    max-width: 90px;
+  }
+
+  .channel {
+    display: none;
+  }
+
+  .controls-row {
+    grid-area: ctrl;
+    gap: 10px;
+    justify-content: center;
+  }
+
+  .ctrl-btn {
+    width: 24px;
+    height: 24px;
+  }
+
+  .play-btn {
+    width: 30px;
+    height: 30px;
+  }
+
+  .right-group {
+    grid-area: right;
+    gap: 6px;
+  }
+
+  .lyrics-btn {
+    width: 26px;
+    height: 26px;
+  }
+
   .volume {
     display: none;
   }
-  .player-bar-inner {
-    grid-template-columns: minmax(120px, 1fr) minmax(0, 2fr);
-    padding: 0 12px;
-  }
-  .right-group {
+}
+
+/* ===== HP kecil banget (misal iPhone SE, 360px ke bawah) ===== */
+@media (max-width: 360px) {
+  .info {
     display: none;
+  }
+
+  .controls-row {
+    gap: 6px;
+  }
+
+  .right-group {
+    gap: 4px;
   }
 }
 </style>

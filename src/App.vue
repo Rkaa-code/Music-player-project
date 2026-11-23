@@ -8,6 +8,7 @@
     </header>
 
     <SearchBar @results="onResults" @searching="isSearching = $event" />
+    <ImportPlaylist @import="onImport" />
 
     <p v-if="tracks.length === 0" class="empty-state">
       {{ isSearching ? 'Lagu tidak ditemukan.' : 'Memuat lagu trending...' }}
@@ -64,10 +65,19 @@ import PlayerBar from './components/PlayerBar.vue'
 import TrackDetailModal from './components/TrackDetailModal.vue'
 import LyricsPanel from './components/LyricsPanel.vue'
 import PlaylistSidebar from './components/PlaylistSidebar.vue'
+import ImportPlaylist from './components/ImportPlaylist.vue'
 import { useYoutubePlayer } from './composables/useYoutubePlayer'
+import { useYoutubeMatch } from './composables/useYoutubeMatch'
+import { searchYoutube } from './api/youtube'
+
+
+const { resolveTrack } = useYoutubeMatch(searchYoutube)
+
+let playToken = 0
 
 const tracks = ref([])
 const isSearching = ref(false)
+const listTitle = ref('Trending Sekarang')
 const shuffle = ref(false)
 const repeatMode = ref('off')
 const detailTrack = ref(null)
@@ -103,18 +113,24 @@ onEnded(() => {
 
 function onResults(results) {
   tracks.value = results
+  listTitle.value = 'Trending Sekarang'
+}
+
+function onImport({ name, tracks: imported }) {
+  tracks.value = imported
+  listTitle.value = `Import: ${name} (${imported.length} lagu)`
 }
 
 // pilih lagu dari hasil pencarian/trending -> antrian = daftar itu
 function onSelect(track) {
   queue.value = tracks.value
-  playTrack(track)
+  playSafe(track)
 }
 
 // pilih lagu dari dalam sebuah playlist (sidebar) -> antrian = isi playlist itu
 function onPlaylistPlay(track, playlist) {
   queue.value = playlist.tracks
-  playTrack(track)
+  playSafe(track)
 }
 
 function currentIndex() {
@@ -127,7 +143,7 @@ function playNext() {
 
   if (shuffle.value) {
     const randomIdx = Math.floor(Math.random() * queue.value.length)
-    playTrack(queue.value[randomIdx])
+    playSafe(queue.value[randomIdx], 1)
     return
   }
 
@@ -142,7 +158,7 @@ function playNext() {
     }
   }
 
-  playTrack(queue.value[nextIdx])
+  playSafe(queue.value[nextIdx], 1)
 }
 
 function playPrevious() {
@@ -155,7 +171,7 @@ function playPrevious() {
     prevIdx = repeatMode.value === 'all' ? queue.value.length - 1 : 0
   }
 
-  playTrack(queue.value[prevIdx])
+  playSafe(queue.value[prevIdx], -1)
 }
 
 function toggleShuffle() {
@@ -166,6 +182,23 @@ function cycleRepeat() {
   const modes = ['off', 'all', 'one']
   const idx = modes.indexOf(repeatMode.value)
   repeatMode.value = modes[(idx + 1) % modes.length]
+}
+
+async function playSafe(track, step = 1, attempts = 0) {
+  if (!track) return
+  const token = ++playToken
+
+  if (!track.id?.videoId) {
+    const found = await resolveTrack(track)
+    if (token !== playToken) return        // user sudah pindah lagu saat menunggu
+    if (!found) {
+      track.notFound = true
+      const next = queue.value[queue.value.indexOf(track) + step]
+      if (next && attempts < 5) return playSafe(next, step, attempts + 1)
+      return
+    }
+  }
+  playTrack(track)
 }
 </script>
 

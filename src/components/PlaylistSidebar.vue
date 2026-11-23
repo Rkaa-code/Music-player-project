@@ -10,6 +10,8 @@
         <button type="submit" :disabled="!newPlaylistName.trim()">+</button>
       </form>
 
+      <ImportPlaylist @import="handleImport" />
+
       <p v-if="playlists.length === 0" class="empty-hint">Belum ada playlist. Buat satu dulu.</p>
 
       <ul v-else class="playlist-list">
@@ -54,7 +56,7 @@
       <draggable
         v-else
         v-model="orderedTracks"
-        :item-key="(track) => track.id.videoId"
+        :item-key="trackKey"
         handle=".drag-handle"
         ghost-class="ghost-track"
         drag-class="dragging-track"
@@ -63,11 +65,17 @@
         class="track-list"
       >
         <template #item="{ element: track }">
-          <li class="track-row" :class="{ active: track.id.videoId === playingId }">
+          <li class="track-row" :class="{ active: !!track.id.videoId && track.id.videoId === playingId }">
             <span class="drag-handle" title="Seret untuk urutkan">
               <GripVertical :size="14" :stroke-width="2" />
             </span>
-            <img class="thumb" :src="track.snippet?.thumbnails?.default?.url" :alt="track.snippet?.title" />
+            <img
+              v-if="track.snippet?.thumbnails?.default?.url"
+              class="thumb"
+              :src="track.snippet.thumbnails.default.url"
+              :alt="track.snippet?.title"
+            />
+            <div v-else class="thumb thumb-empty"></div>
             <div class="track-meta" @click="$emit('play', track, selected)">
               <span class="track-title">{{ track.snippet?.title }}</span>
               <span class="track-channel">{{ track.snippet?.channelTitle }}</span>
@@ -75,7 +83,7 @@
             <button
               class="icon-btn danger"
               title="Hapus dari playlist"
-              @click="removeTrackFromPlaylist(selected.id, track.id.videoId)"
+              @click="removeTrackFromPlaylist(selected.id, trackKey(track))"
             >
               ✕
             </button>
@@ -90,15 +98,23 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import draggable from 'vuedraggable'
 import { GripVertical, Pencil } from 'lucide-vue-next'
-import { usePlaylists } from '../composables/usePlaylists'
+import ImportPlaylist from './ImportPlaylist.vue'
+import { usePlaylists, trackKey } from '../composables/usePlaylists'
 
 defineProps({
   playingId: { type: String, default: null },
 })
 const emit = defineEmits(['play'])
 
-const { playlists, createPlaylist, deletePlaylist, renamePlaylist, removeTrackFromPlaylist, reorderTracks } =
-  usePlaylists()
+const {
+  playlists,
+  createPlaylist,
+  importPlaylist,
+  deletePlaylist,
+  renamePlaylist,
+  removeTrackFromPlaylist,
+  reorderTracks,
+} = usePlaylists()
 
 const newPlaylistName = ref('')
 const selected = ref(null)
@@ -127,6 +143,12 @@ const orderedTracks = computed({
 function handleCreate() {
   createPlaylist(newPlaylistName.value)
   newPlaylistName.value = ''
+}
+
+function handleImport({ name, tracks }) {
+  const created = importPlaylist(name, tracks)
+  // ambil lewat find() supaya yang dipilih adalah versi reaktifnya
+  selected.value = playlists.value.find((p) => p.id === created.id) ?? null
 }
 
 function handleDeletePlaylist(pl) {
@@ -172,7 +194,7 @@ function cancelRename() {
 }
 .sidebar-header { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
 .sidebar-header h2 { font-family: 'Fraunces', serif; font-size: 18px; margin: 0; color: var(--text); }
-.new-playlist-form { display: flex; gap: 6px; margin-bottom: 16px; }
+.new-playlist-form { display: flex; gap: 6px; margin-bottom: 12px; }
 .new-playlist-form input { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; color: var(--text); font-size: 13px; }
 .new-playlist-form button { background: var(--brass); border: none; border-radius: 6px; width: 28px; color: var(--bg); font-weight: 600; cursor: pointer; }
 .new-playlist-form button:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -243,6 +265,7 @@ function cancelRename() {
 }
 
 .thumb { width: 32px; height: 32px; border-radius: 4px; object-fit: cover; flex-shrink: 0; }
+.thumb-empty { background: var(--bg); }
 .track-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; cursor: pointer; }
 .track-title { font-size: 12.5px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .track-channel { font-size: 11px; color: var(--text-muted); }
