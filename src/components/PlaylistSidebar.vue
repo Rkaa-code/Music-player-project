@@ -65,7 +65,11 @@
         class="track-list"
       >
         <template #item="{ element: track }">
-          <li class="track-row" :class="{ active: !!track.id.videoId && track.id.videoId === playingId }">
+          <li
+            class="track-row"
+            :class="{ active: !!track.id.videoId && track.id.videoId === playingId }"
+            @contextmenu="openMenu($event, track, selected)"
+          >
             <span class="drag-handle" title="Seret untuk urutkan">
               <GripVertical :size="14" :stroke-width="2" />
             </span>
@@ -100,11 +104,14 @@ import draggable from 'vuedraggable'
 import { GripVertical, Pencil } from 'lucide-vue-next'
 import ImportPlaylist from './ImportPlaylist.vue'
 import { usePlaylists, trackKey } from '../composables/usePlaylists'
+import { useTrackMenu } from '../composables/useTrackMenu'
 
 defineProps({
   playingId: { type: String, default: null },
 })
 const emit = defineEmits(['play'])
+
+const { openMenu } = useTrackMenu()
 
 const {
   playlists,

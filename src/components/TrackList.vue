@@ -5,6 +5,7 @@
       :key="item.id.videoId"
       :class="{ active: item.id.videoId === playingId }"
       @click="$emit('select', item)"
+      @contextmenu="openMenu($event, item)"
     >
       <span class="index">
         <span v-if="item.id.videoId === playingId" class="playing-bars">
@@ -26,6 +27,9 @@
 </template>
 
 <script setup>
+import { useTrackMenu } from '../composables/useTrackMenu'
+const { openMenu } = useTrackMenu()
+
 defineProps({
   tracks: { type: Array, default: () => [] },
   playingId: { type: String, default: null },

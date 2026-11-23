@@ -2,13 +2,18 @@
   <PlaylistSidebar :playing-id="currentTrack?.id?.videoId" @play="onPlaylistPlay" />
 
   <div class="app">
+    <ContextMenu
+      @play="onMenuPlay"
+      @play-next="queueNext"
+      @add-queue="queueEnd"
+      @detail="(t) => (detailTrack = t)"
+    />
     <header class="app-header">
       <span class="eyebrow">Now Browsing</span>
       <h1>LRMusic</h1>
     </header>
 
     <SearchBar @results="onResults" @searching="isSearching = $event" />
-    <ImportPlaylist @import="onImport" />
 
     <p v-if="tracks.length === 0" class="empty-state">
       {{ isSearching ? 'Lagu tidak ditemukan.' : 'Memuat lagu trending...' }}
@@ -65,7 +70,7 @@ import PlayerBar from './components/PlayerBar.vue'
 import TrackDetailModal from './components/TrackDetailModal.vue'
 import LyricsPanel from './components/LyricsPanel.vue'
 import PlaylistSidebar from './components/PlaylistSidebar.vue'
-import ImportPlaylist from './components/ImportPlaylist.vue'
+import ContextMenu from './components/ContextMenu.vue'
 import { useYoutubePlayer } from './composables/useYoutubePlayer'
 import { useYoutubeMatch } from './composables/useYoutubeMatch'
 import { searchYoutube } from './api/youtube'
@@ -131,6 +136,23 @@ function onSelect(track) {
 function onPlaylistPlay(track, playlist) {
   queue.value = playlist.tracks
   playSafe(track)
+}
+
+function onMenuPlay(track, playlist) {
+  if (playlist) onPlaylistPlay(track, playlist)
+  else onSelect(track)
+}
+
+// antrian bisa sama dengan array daftar trending / isi playlist, jadi disalin dulu
+// sebelum diubah supaya daftar aslinya tidak ikut berubah
+function queueNext(track) {
+  const q = [...queue.value]
+  q.splice(currentIndex() + 1, 0, track)
+  queue.value = q
+}
+
+function queueEnd(track) {
+  queue.value = [...queue.value, track]
 }
 
 function currentIndex() {
