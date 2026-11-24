@@ -195,9 +195,38 @@ function cancelRename() {
   width: 260px;
   background: var(--surface);
   border-right: 1px solid var(--border);
-  padding: 20px 14px;
+  /* padding bawah = tinggi player bar (--player-h dari PlayerBar) + sedikit ruang, biar lagu paling bawah tidak tertutup */
+  padding: 20px 14px calc(var(--player-h, 0px) + 20px);
   overflow-y: auto;
   font-family: 'Inter', sans-serif;
+}
+
+/* scrollbar bertema: track transparan, thumb warna border, jadi brass saat di-hover (Chrome, Edge, Safari) */
+.playlist-sidebar::-webkit-scrollbar {
+  width: 10px;
+}
+.playlist-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.playlist-sidebar::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+  border: 3px solid var(--surface); /* bikin thumb tampak lebih tipis dan melayang */
+}
+.playlist-sidebar::-webkit-scrollbar-thumb:hover {
+  background: var(--brass);
+}
+.playlist-sidebar::-webkit-scrollbar-thumb:active {
+  background: var(--coral);
+}
+
+/* Firefox: tidak mengenal ::-webkit-scrollbar, jadi pakai properti standar.
+   Dibungkus @supports supaya Chrome tidak mengabaikan styling di atas */
+@supports not selector(::-webkit-scrollbar) {
+  .playlist-sidebar {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
 }
 .sidebar-header { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
 .sidebar-header h2 { font-family: 'Fraunces', serif; font-size: 18px; margin: 0; color: var(--text); }
@@ -278,6 +307,12 @@ function cancelRename() {
 .track-channel { font-size: 11px; color: var(--text-muted); }
 
 @media (max-width: 720px) {
-  .playlist-sidebar { position: static; width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
+  .playlist-sidebar {
+    position: static;
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 20px; /* di HP sidebar ikut alur halaman, tidak fixed, jadi tidak perlu ruang untuk player bar */
+  }
 }
 </style>

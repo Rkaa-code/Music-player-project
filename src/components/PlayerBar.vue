@@ -1,5 +1,16 @@
 <template>
-  <div class="player-bar" v-if="track">
+  <div class="player-bar" :class="{ collapsed }" v-if="track" ref="barEl">
+    <button
+      class="collapse-btn"
+      :title="collapsed ? 'Perbesar' : 'Kecilkan'"
+      :aria-label="collapsed ? 'Perbesar pemutar' : 'Kecilkan pemutar'"
+      :aria-expanded="!collapsed"
+      @click="collapsed = !collapsed"
+    >
+      <ChevronUp v-if="collapsed" :size="18" :stroke-width="2.5" />
+      <ChevronDown v-else :size="18" :stroke-width="2.5" />
+    </button>
+
     <div class="player-bar-inner">
       <div class="now-playing">
         <div class="art-wrap">
@@ -108,7 +119,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch, onBeforeUnmount } from 'vue'
 import {
   Play,
   Pause,
@@ -121,6 +132,8 @@ import {
   Volume1,
   VolumeX,
   Mic2,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-vue-next'
 import AddToPlaylistMenu from './AddToPlaylistMenu.vue'
 
@@ -146,6 +159,35 @@ const emit = defineEmits([
   'show-detail',
   'toggle-lyrics',
 ])
+
+// ===== Tinggi bar dilaporkan ke --player-h supaya konten bisa kasih ruang di bawahnya =====
+const barEl = ref(null)
+const collapsed = ref(false)
+let ro = null
+
+function setPlayerHeight(h) {
+  document.documentElement.style.setProperty('--player-h', h + 'px')
+}
+
+// v-if="track" bikin elemen muncul/hilang, jadi yang dipantau ref-nya
+watch(
+  barEl,
+  (el) => {
+    ro?.disconnect()
+    if (!el) {
+      setPlayerHeight(0)
+      return
+    }
+    ro = new ResizeObserver(() => setPlayerHeight(el.offsetHeight))
+    ro.observe(el)
+  },
+  { flush: 'post' },
+)
+
+onBeforeUnmount(() => {
+  ro?.disconnect()
+  setPlayerHeight(0)
+})
 
 function formatTime(seconds) {
   if (!seconds || isNaN(seconds)) return '0:00'
@@ -181,6 +223,48 @@ const seekPercent = computed(() => {
   border-top: 1px solid var(--border);
   box-shadow: 0 -12px 24px -12px rgba(0, 0, 0, 0.5);
   z-index: 10;
+  transition: height 0.2s ease;
+}
+
+/* ===== Tombol lipat/perbesar ===== */
+.collapse-btn {
+  position: absolute;
+  top: -22px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 72px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  box-shadow: 0 -4px 10px -4px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  padding: 0;
+}
+
+.collapse-btn:hover {
+  color: var(--text);
+}
+
+.collapse-btn:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 2px;
+}
+
+/* mode lipat: sisakan info lagu + tombol kontrol, sembunyikan progress, volume, dan channel */
+.player-bar.collapsed {
+  height: 56px;
+}
+
+.player-bar.collapsed .progress-row,
+.player-bar.collapsed .volume,
+.player-bar.collapsed .channel {
+  display: none;
 }
 
 .player-bar-inner {
@@ -377,6 +461,10 @@ const seekPercent = computed(() => {
 @media (prefers-reduced-motion: reduce) {
   .title.marquee, .vinyl.spinning, .pulse-dot {
     animation: none;
+  }
+
+  .player-bar {
+    transition: none;
   }
 }
 
@@ -577,6 +665,15 @@ input[type='range']:focus-visible {
     column-gap: 8px;
     padding: 0 10px;
     max-width: none;
+  }
+
+  /* mode lipat di HP: baris progress hilang, tinggi mengikuti isi */
+  .player-bar.collapsed {
+    height: auto;
+  }
+
+  .player-bar.collapsed .player-bar-inner {
+    row-gap: 0;
   }
 
   /* .center jadi wrapper transparan biar anak-anaknya bisa ditempatin manual di grid */
