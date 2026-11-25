@@ -36,6 +36,8 @@
       :shuffle="shuffle"
       :repeat-mode="repeatMode"
       :lyrics-open="lyricsOpen"
+      :queue-open="queueOpen"
+      @toggle-queue="toggleQueue"
       @toggle-play="togglePlay"
       @seek="seekTo"
       @volume-change="setVolume"
@@ -45,6 +47,18 @@
       @cycle-repeat="cycleRepeat"
       @show-detail="detailTrack = currentTrack"
       @toggle-lyrics="lyricsOpen = !lyricsOpen"
+    />
+
+    <QueuePanel
+      :open="queueOpen"
+      :current="queueCurrent"
+      :upcoming="upcoming"
+      :shuffle="shuffle"
+      :repeat-mode="repeatMode"
+      @close="queueOpen = false"
+      @play="playUpcoming"
+      @remove="removeUpcoming"
+      @clear="clearUpcoming"
     />
 
     <TrackDetailModal
@@ -74,10 +88,15 @@ import ContextMenu from './components/ContextMenu.vue'
 import { useYoutubePlayer } from './composables/useYoutubePlayer'
 import { useYoutubeMatch } from './composables/useYoutubeMatch'
 import { searchYoutube } from './api/youtube'
+import QueuePanel from './components/QueuePanel.vue'
+import { useQueue } from './composables/useQueue'
 
 
 const { resolveTrack } = useYoutubeMatch(searchYoutube)
 
+const queueOpen = ref(false)
+
+let originalQueue = []
 let playToken = 0
 
 const tracks = ref([])
@@ -106,6 +125,18 @@ const {
   volume,
 } = useYoutubePlayer()
 
+const {
+  current: queueCurrent,
+  upcoming,
+  playUpcoming,
+  removeUpcoming,
+  clearUpcoming,
+} = useQueue({
+  queue,
+  getIndex: currentIndex,
+  playAt: (i) => playSafe(queue.value[i], 1),
+})
+
 onMounted(() => initPlayer())
 
 onEnded(() => {
@@ -126,15 +157,47 @@ function onImport({ name, tracks: imported }) {
   listTitle.value = `Import: ${name} (${imported.length} lagu)`
 }
 
+function shuffled(arr) {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+function shuffleQueue(head) {
+  originalQueue = [...queue.value]
+  queue.value = head
+    ? [head, ...shuffled(queue.value.filter((t) => t !== head))]
+    : shuffled(queue.value)
+}
+
+function restoreQueue() {
+  if (!originalQueue.length) return
+  const cur = new Set(queue.value)
+  const orig = new Set(originalQueue)
+  queue.value = [
+    ...originalQueue.filter((t) => cur.has(t)),   // urutan asli, tanpa lagu yang sudah dihapus
+    ...queue.value.filter((t) => !orig.has(t)),   // lagu yang ditambah saat shuffle (play next / add queue)
+  ]
+  originalQueue = []
+}
+
+function setQueue(list, startTrack) {
+  queue.value = list
+  if (shuffle.value) shuffleQueue(list.includes(startTrack) ? startTrack : null)
+  else originalQueue = []
+}
 // pilih lagu dari hasil pencarian/trending -> antrian = daftar itu
 function onSelect(track) {
-  queue.value = tracks.value
+  setQueue(tracks.value, track)
   playSafe(track)
 }
 
 // pilih lagu dari dalam sebuah playlist (sidebar) -> antrian = isi playlist itu
 function onPlaylistPlay(track, playlist) {
-  queue.value = playlist.tracks
+  setQueue(playlist.tracks, track)
   playSafe(track)
 }
 
@@ -155,6 +218,16 @@ function queueEnd(track) {
   queue.value = [...queue.value, track]
 }
 
+function toggleLyrics() {
+  lyricsOpen.value = !lyricsOpen.value
+  if (lyricsOpen.value) queueOpen.value = false
+}
+
+function toggleQueue() {
+  queueOpen.value = !queueOpen.value
+  if (queueOpen.value) lyricsOpen.value = false
+}
+
 function currentIndex() {
   if (!currentTrack.value) return -1
   return queue.value.findIndex((t) => t.id.videoId === currentTrack.value.id.videoId)
@@ -163,26 +236,22 @@ function currentIndex() {
 function playNext() {
   if (queue.value.length === 0) return
 
-  if (shuffle.value) {
-    const randomIdx = Math.floor(Math.random() * queue.value.length)
-    playSafe(queue.value[randomIdx], 1)
-    return
-  }
-
   const idx = currentIndex()
   let nextIdx = idx + 1
 
   if (nextIdx >= queue.value.length) {
-    if (repeatMode.value === 'all') {
-      nextIdx = 0
-    } else {
-      return // sudah di lagu terakhir, berhenti
+    if (repeatMode.value !== 'all') return // sudah di lagu terakhir, berhenti
+
+    if (shuffle.value && queue.value.length > 1) {
+      // putaran baru: acak ulang, lagu yang baru selesai ditaruh paling belakang
+      const last = queue.value[idx]
+      queue.value = [...shuffled(queue.value.filter((t) => t !== last)), last]
     }
+    nextIdx = 0
   }
 
   playSafe(queue.value[nextIdx], 1)
 }
-
 function playPrevious() {
   if (queue.value.length === 0) return
 
@@ -198,6 +267,8 @@ function playPrevious() {
 
 function toggleShuffle() {
   shuffle.value = !shuffle.value
+  if (shuffle.value) shuffleQueue(queue.value[currentIndex()])
+  else restoreQueue()
 }
 
 function cycleRepeat() {

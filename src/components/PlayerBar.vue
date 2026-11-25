@@ -97,6 +97,15 @@
           <Mic2 :size="16" :stroke-width="2" />
         </button>
 
+        <button
+          class="ctrl-btn queue-btn"
+          :class="{ active: queueOpen }"
+          title="Antrian"
+          @click="$emit('toggle-queue')"
+        >
+          <ListMusic :size="16" :stroke-width="2" />
+        </button>
+
         <div class="volume">
           <span class="volume-icon">
             <VolumeX v-if="volume === 0" :size="16" :stroke-width="2" />
@@ -132,6 +141,7 @@ import {
   Volume1,
   VolumeX,
   Mic2,
+  ListMusic,
   ChevronDown,
   ChevronUp,
 } from 'lucide-vue-next'
@@ -146,6 +156,7 @@ const props = defineProps({
   shuffle: { type: Boolean, default: false },
   repeatMode: { type: String, default: 'off' }, // 'off' | 'all' | 'one'
   lyricsOpen: { type: Boolean, default: false },
+  queueOpen: { type: Boolean, default: false },
 })
 
 const emit = defineEmits([
@@ -158,6 +169,7 @@ const emit = defineEmits([
   'cycle-repeat',
   'show-detail',
   'toggle-lyrics',
+  'toggle-queue',
 ])
 
 // ===== Tinggi bar dilaporkan ke --player-h supaya konten bisa kasih ruang di bawahnya =====
@@ -611,7 +623,8 @@ input[type='range']:focus-visible {
   flex-shrink: 0;
 }
 
-.lyrics-btn {
+.lyrics-btn,
+.queue-btn {
   width: 30px;
   height: 30px;
 }
@@ -743,7 +756,8 @@ input[type='range']:focus-visible {
     gap: 6px;
   }
 
-  .lyrics-btn {
+  .lyrics-btn,
+  .queue-btn {
     width: 26px;
     height: 26px;
   }

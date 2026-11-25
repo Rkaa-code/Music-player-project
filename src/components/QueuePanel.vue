@@ -23,7 +23,7 @@
         <button v-if="upcoming.length" class="qp-clear" @click="$emit('clear')">Kosongkan</button>
       </div>
 
-      <p v-if="shuffle" class="qp-hint">Shuffle aktif: lagu berikutnya dipilih acak dari antrian.</p>
+      <p v-if="shuffle" class="qp-hint">Shuffle aktif: urutan antrian diacak.</p>
       <p v-else-if="repeatMode === 'all' && upcoming.length" class="qp-hint">
         Repeat semua: setelah lagu terakhir kembali ke awal antrian.
       </p>

@@ -27,7 +27,7 @@ function makeId() {
 
 // identitas stabil sebuah lagu: lagu import punya `key` (videoId-nya baru ada setelah di-match),
 // lagu dari pencarian memakai videoId
-export const trackKey = (t) => t.key ?? t.id?.videoId
+export const trackKey = (t) => t?.id?.videoId ?? t?.snippet?.title ?? ''
 
 // state singleton di luar fungsi -> semua komponen yang panggil usePlaylists()
 // berbagi state reaktif yang sama, tanpa perlu provide/inject
