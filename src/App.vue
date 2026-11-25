@@ -10,7 +10,7 @@
     />
     <header class="app-header">
       <span class="eyebrow">Now Browsing</span>
-      <h1>LRMusic</h1>
+      <h1>LRMP</h1>
     </header>
 
     <SearchBar @results="onResults" @searching="isSearching = $event" />
