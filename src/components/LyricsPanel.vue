@@ -10,9 +10,24 @@
                 <h3 class="track-title">{{ track.snippet.title }}</h3>
                 <p class="track-artist">{{ track.snippet.channelTitle }}</p>
               </div>
-              <button class="close-btn" @click="$emit('close')" aria-label="Tutup">
-                <X :size="16" />
-              </button>
+
+              <div class="header-actions">
+                <button
+                  v-if="available"
+                  class="icon-btn"
+                  :class="{ active: romanizeOn, busy: romanizeBusy }"
+                  :title="romanizeOn ? 'Sembunyikan tulisan Latin' : 'Tampilkan tulisan Latin'"
+                  :aria-pressed="romanizeOn"
+                  aria-label="Tampilkan lirik dalam huruf Latin"
+                  @click="toggleRomanize"
+                >
+                  <Languages :size="16" />
+                </button>
+
+                <button class="icon-btn" @click="$emit('close')" aria-label="Tutup">
+                  <X :size="16" />
+                </button>
+              </div>
             </header>
 
             <div class="lyrics-body">
@@ -33,7 +48,8 @@
                   :class="{ active: i === activeIndex, past: i < activeIndex }"
                   @click="$emit('seek', line.time)"
                 >
-                  {{ line.text }}
+                  <span class="line-text">{{ line.text }}</span>
+                  <span v-if="romanizeOn && romanized[i]" class="line-roman">{{ romanized[i] }}</span>
                 </li>
               </ul>
             </div>
@@ -46,8 +62,9 @@
 
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
-import { X } from 'lucide-vue-next'
+import { X, Languages } from 'lucide-vue-next'
 import { useLyrics } from '../composables/useLyrics'
+import { useRomanization } from '../composables/useRomanization'
 
 const props = defineProps({
   track: { type: Object, default: null },
@@ -58,6 +75,14 @@ defineEmits(['close', 'seek'])
 
 const trackRef = computed(() => props.track)
 const { lines, status } = useLyrics(trackRef)
+
+const {
+  enabled: romanizeOn,
+  available,
+  romanized,
+  busy: romanizeBusy,
+  toggle: toggleRomanize,
+} = useRomanization(lines)
 
 const activeIndex = computed(() => {
   if (!lines.value.length) return -1
@@ -82,6 +107,13 @@ watch(activeIndex, async (idx) => {
 
 watch(lines, () => {
   lineEls.value = []
+})
+
+// tinggi baris berubah saat teks Latin muncul/hilang, jadi pusatkan ulang baris aktif
+watch([romanized, romanizeOn], async () => {
+  await nextTick()
+  const el = lineEls.value[activeIndex.value]
+  if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' })
 })
 </script>
 
@@ -149,7 +181,14 @@ watch(lines, () => {
   margin: 0;
 }
 
-.close-btn {
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.icon-btn {
   width: 30px;
   height: 30px;
   border-radius: 4px;
@@ -164,9 +203,28 @@ watch(lines, () => {
   transition: color 0.15s ease, border-color 0.15s ease;
 }
 
-.close-btn:hover {
+.icon-btn:hover {
   color: var(--text);
   border-color: var(--brass);
+}
+
+.icon-btn.active {
+  color: var(--brass);
+  border-color: var(--brass);
+}
+
+.icon-btn.busy {
+  animation: busy-pulse 1s ease-in-out infinite;
+}
+
+@keyframes busy-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.icon-btn:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 2px;
 }
 
 .lyrics-body {
@@ -229,6 +287,27 @@ watch(lines, () => {
   transform: scale(1.02);
 }
 
+/* teks Latin di bawah baris asli */
+.line-text {
+  display: block;
+}
+
+.line-roman {
+  display: block;
+  margin-top: 3px;
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.4;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.lyrics-line.active .line-roman {
+  color: var(--brass);
+  opacity: 0.85;
+  font-size: 13px;
+}
+
 /* transitions */
 .scrim-fade-enter-active,
 .scrim-fade-leave-active {
@@ -255,6 +334,10 @@ watch(lines, () => {
   .panel-slide-leave-active,
   .lyrics-line {
     transition: none !important;
+  }
+
+  .icon-btn.busy {
+    animation: none;
   }
 }
 

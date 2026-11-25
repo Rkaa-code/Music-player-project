@@ -9,12 +9,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "any-ascii": "^0.3.3",
+    "kuroshiro": "^1.2.1",
+    "kuroshiro-analyzer-kuromoji": "^1.1.0",
     "lucide-vue-next": "^1.0.0",
     "papaparse": "^5.7.1",
+    "pinyin-pro": "^3.29.5",
     "vue": "^3.4.0",
     "vue-music-flow": "^2.0.1",
     "vue-plyr": "^7.0.0",
-    "vuedraggable": "^4.1.0"
+    "vuedraggable": "^4.1.0",
+    "wanakana": "^5.3.1"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.0",
