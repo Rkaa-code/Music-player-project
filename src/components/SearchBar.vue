@@ -16,6 +16,7 @@ import { ref, onMounted } from 'vue'
 const emit = defineEmits(['results', 'searching'])
 const query = ref('')
 const API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY
+const MAX_RESULTS = 100
 
 function normalize(items) {
   return items.map((item) => ({
@@ -69,9 +70,10 @@ async function search() {
 
   emit('searching', true)
 
+// di search()
   const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(
     keyword
-  )}&type=video&videoCategoryId=10&maxResults=10&key=${API_KEY}`
+  )}&type=video&videoCategoryId=10&maxResults=${MAX_RESULTS}&key=${API_KEY}`
 
   const res = await fetch(url)
   const data = await res.json()
@@ -82,7 +84,8 @@ async function search() {
 }
 
 async function fetchTrending() {
-  const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet&chart=mostPopular&videoCategoryId=10&regionCode=ID&maxResults=10&key=${API_KEY}`
+// di fetchTrending()
+  const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet&chart=mostPopular&videoCategoryId=10&regionCode=ID&maxResults=${MAX_RESULTS}&key=${API_KEY}`
 
   const res = await fetch(url)
   const data = await res.json()

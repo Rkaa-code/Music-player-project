@@ -23,6 +23,8 @@
     <TrackList
       :tracks="tracks"
       :playing-id="currentTrack?.id?.videoId"
+      :per-page-options="[10, 25, 50, 100]"
+      :default-per-page="10"
       @select="onSelect"
     />
 

@@ -103,7 +103,7 @@
           title="Antrian"
           @click="$emit('toggle-queue')"
         >
-          <ListMusic :size="16" :stroke-width="2" />
+          <ListOrdered :size="16" :stroke-width="2" />
         </button>
 
         <div class="volume">
@@ -142,6 +142,7 @@ import {
   VolumeX,
   Mic2,
   ListMusic,
+  ListOrdered,
   ChevronDown,
   ChevronUp,
 } from 'lucide-vue-next'
