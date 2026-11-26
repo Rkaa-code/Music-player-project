@@ -106,6 +106,7 @@ import { searchYoutube } from './api/youtube'
 import QueuePanel from './components/QueuePanel.vue'
 import { useQueue } from './composables/useQueue'
 import { useMediaSession } from './composables/useMediaSession'
+import { useKeyboardShortcuts } from './composables/useKeyboardShortcuts'
 
 let keepPlaying = false
 
@@ -156,6 +157,20 @@ const {
   getIndex: currentIndex,
   playAt: (i) => playSafe(queue.value[i], 1),
 })
+
+
+// ===== Keyboard Shortcut ===== //
+
+useKeyboardShortcuts({
+  hasTrack: () => !!currentTrack.value,
+  isPlaying,
+  currentTime,
+  duration,
+  togglePlay,
+  seekTo,
+})
+
+// ============================= //
 
 // ===== drawer: kunci scroll halaman saat terbuka, tutup dengan Esc / saat layar melebar =====
 const mobileQuery = window.matchMedia('(max-width: 720px)')
