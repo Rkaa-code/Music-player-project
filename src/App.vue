@@ -25,12 +25,50 @@
       </div>
     </header>
 
-    <SearchBar @results="onResults" @searching="isSearching = $event" />
+    <SearchBar @results="onResults" @searching="isSearching = $event" @query="onQuery" />
 
-    <p v-if="tracks.length === 0" class="empty-state">
+    <!-- hasil channel yang cocok dengan kata kunci + beberapa lagu pratinjau -->
+    <section v-if="channelBlocks.length && !activeChannel" class="channel-results">
+      <h2 class="section-label">Channel</h2>
+
+      <article v-for="ch in channelBlocks" :key="ch.id" class="channel-block">
+        <button class="channel-header" @click="openChannel(ch)">
+          <img :src="ch.thumb" :alt="ch.title" />
+          <span class="channel-name">{{ ch.title }}</span>
+          <span class="see-all">Lihat semua <ChevronRight :size="16" :stroke-width="2" /></span>
+        </button>
+
+        <ul v-if="ch.previews.length" class="preview-list">
+          <li
+            v-for="t in ch.previews"
+            :key="t.id.videoId"
+            :class="{ active: t.id.videoId === currentTrack?.id?.videoId }"
+            @click="onPreviewSelect(t, ch.previews)"
+          >
+            <img :src="t.snippet.thumbnails.default.url" alt="" />
+            <span class="p-title">{{ t.snippet.title }}</span>
+          </li>
+        </ul>
+      </article>
+    </section>
+
+    <div v-if="activeChannel" class="channel-head">
+      <button class="back-btn" aria-label="Kembali ke hasil pencarian" @click="closeChannel">
+        <ArrowLeft :size="20" :stroke-width="2" />
+      </button>
+      <img :src="activeChannel.thumb" :alt="activeChannel.title" />
+      <h2>{{ activeChannel.title }}</h2>
+    </div>
+    <p v-else-if="tracks.length === 0" class="empty-state">
       {{ isSearching ? 'Lagu tidak ditemukan.' : 'Memuat lagu trending...' }}
     </p>
-    <h2 v-else-if="!isSearching" class="section-label">Trending Sekarang</h2>
+    <h2 v-else-if="!isSearching" class="section-label">
+      {{ lastQuery ? 'Lagu' : 'Trending Sekarang' }}
+    </h2>
+
+    <p v-if="activeChannel && channelLoading && tracks.length === 0" class="empty-state">
+      Memuat lagu channel…
+    </p>
 
     <TrackList
       :tracks="tracks"
@@ -39,6 +77,15 @@
       :default-per-page="10"
       @select="onSelect"
     />
+
+    <button
+      v-if="activeChannel && channelNext"
+      class="load-more"
+      :disabled="channelLoading"
+      @click="loadMoreChannel"
+    >
+      {{ channelLoading ? 'Memuat…' : 'Muat lebih banyak' }}
+    </button>
 
     <div id="player" style="display: none"></div>
     <PlayerBar
@@ -92,7 +139,7 @@
 
 <script setup>
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
-import { Menu } from 'lucide-vue-next'
+import { Menu, ArrowLeft, ChevronRight } from 'lucide-vue-next'
 import SearchBar from './components/SearchBar.vue'
 import TrackList from './components/TrackList.vue'
 import PlayerBar from './components/PlayerBar.vue'
@@ -102,7 +149,7 @@ import PlaylistSidebar from './components/PlaylistSidebar.vue'
 import ContextMenu from './components/ContextMenu.vue'
 import { useYoutubePlayer } from './composables/useYoutubePlayer'
 import { useYoutubeMatch } from './composables/useYoutubeMatch'
-import { searchYoutube } from './api/youtube'
+import { searchYoutube, searchChannels, getChannelUploads, addDurations } from './api/youtube'
 import QueuePanel from './components/QueuePanel.vue'
 import { useQueue } from './composables/useQueue'
 import { useMediaSession } from './composables/useMediaSession'
@@ -119,6 +166,16 @@ const sidebarOpen = ref(false)
 
 let originalQueue = []
 let playToken = 0
+
+// ===== state channel =====
+const lastQuery = ref('')
+const channelBlocks = ref([]) // [{ id, title, thumb, previews: [track, ...] }]
+const activeChannel = ref(null)
+const channelNext = ref(null)
+const channelLoading = ref(false)
+let savedTracks = []
+let channelToken = 0
+const channelCache = new Map() // cache per kata kunci supaya pencarian yang sama tidak memakan kuota lagi
 
 const tracks = ref([])
 const isSearching = ref(false)
@@ -158,9 +215,7 @@ const {
   playAt: (i) => playSafe(queue.value[i], 1),
 })
 
-
-// ===== Keyboard Shortcut ===== //
-
+// ===== Keyboard shortcut =====
 useKeyboardShortcuts({
   hasTrack: () => !!currentTrack.value,
   isPlaying,
@@ -170,13 +225,7 @@ useKeyboardShortcuts({
   seekTo,
 })
 
-// ============================= //
-
-// ===== drawer: kunci scroll halaman saat terbuka, tutup dengan Esc / saat layar melebar =====
-const mobileQuery = window.matchMedia('(max-width: 720px)')
-
-// ---------------------------------------------------------------------------------- //
-
+// ===== Media session (kontrol di notifikasi / layar kunci HP) =====
 useMediaSession({
   track: currentTrack,
   isPlaying,
@@ -191,10 +240,7 @@ useMediaSession({
   },
 })
 
-watch(sidebarOpen, (open) => {
-  document.body.style.overflow = open && mobileQuery.matches ? 'hidden' : ''
-})
-
+// ===== Lanjut memutar saat halaman pindah ke latar belakang =====
 function onVisibility() {
   keepPlaying = document.hidden ? isPlaying.value : false
 }
@@ -206,10 +252,12 @@ watch(isPlaying, (playing) => {
   }, 300)
 })
 
-onMounted(() => document.addEventListener('visibilitychange', onVisibility))
-onBeforeUnmount(() => document.removeEventListener('visibilitychange', onVisibility))
+// ===== Drawer: kunci scroll halaman saat terbuka, tutup dengan Esc / saat layar melebar =====
+const mobileQuery = window.matchMedia('(max-width: 720px)')
 
-// ----------------------------------------------------------------------------------- //
+watch(sidebarOpen, (open) => {
+  document.body.style.overflow = open && mobileQuery.matches ? 'hidden' : ''
+})
 
 function onKeydown(e) {
   if (e.key === 'Escape') sidebarOpen.value = false
@@ -219,16 +267,17 @@ function onBreakpointChange(e) {
   if (!e.matches) sidebarOpen.value = false
 }
 
-
 onMounted(() => {
   initPlayer()
   window.addEventListener('keydown', onKeydown)
   mobileQuery.addEventListener('change', onBreakpointChange)
+  document.addEventListener('visibilitychange', onVisibility)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
   mobileQuery.removeEventListener('change', onBreakpointChange)
+  document.removeEventListener('visibilitychange', onVisibility)
   document.body.style.overflow = ''
 })
 
@@ -240,7 +289,111 @@ onEnded(() => {
   playNext()
 })
 
+// =========== CHANNEL =========== //
+
+const norm = (s) =>
+  s
+    .toLowerCase()
+    .replace(/\s*-\s*topic$/, '')
+    .replace(/\b(official|vevo|channel)\b/g, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+// channel dianggap cocok kalau namanya mengandung kata kunci, kata kunci mengandung namanya,
+// atau semua kata kunci ada di namanya
+function isChannelMatch(title, query) {
+  const t = norm(title)
+  const q = norm(query)
+  if (!t || !q) return false
+  return t.includes(q) || (t.length >= 3 && q.includes(t)) || q.split(' ').every((w) => t.includes(w))
+}
+
+async function onQuery(q) {
+  lastQuery.value = q
+  activeChannel.value = null
+  channelNext.value = null
+  channelBlocks.value = []
+
+  const token = ++channelToken
+  if (!q) return
+
+  try {
+    let blocks = channelCache.get(q)
+    if (!blocks) {
+      const found = (await searchChannels(q, 8))
+        .filter((ch) => isChannelMatch(ch.title, q))
+        .slice(0, 3)
+
+      blocks = await Promise.all(
+        found.map(async (ch) => {
+          try {
+            const { tracks: list } = await getChannelUploads(ch.id, undefined, 5)
+            return { ...ch, previews: list.slice(0, 4) }
+          } catch {
+            return { ...ch, previews: [] }
+          }
+        }),
+      )
+      channelCache.set(q, blocks)
+    }
+    // abaikan hasil lama kalau sudah ada pencarian yang lebih baru
+    if (token === channelToken) channelBlocks.value = blocks
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+// pilih lagu dari pratinjau channel -> antrian = pratinjau itu
+function onPreviewSelect(track, list) {
+  setQueue(list, track)
+  playSafe(track)
+}
+
+async function openChannel(ch) {
+  if (!activeChannel.value) savedTracks = tracks.value // simpan hasil pencarian untuk tombol kembali
+  activeChannel.value = ch
+  channelLoading.value = true
+  tracks.value = []
+  try {
+    const { tracks: list, nextPageToken } = await getChannelUploads(ch.id)
+    tracks.value = await addDurations(list)
+    channelNext.value = nextPageToken
+  } catch (e) {
+    console.error(e)
+  } finally {
+    channelLoading.value = false
+  }
+}
+
+async function loadMoreChannel() {
+  if (!channelNext.value || channelLoading.value) return
+  channelLoading.value = true
+  try {
+    const { tracks: list, nextPageToken } = await getChannelUploads(
+      activeChannel.value.id,
+      channelNext.value,
+    )
+    tracks.value = [...tracks.value, ...(await addDurations(list))]
+    channelNext.value = nextPageToken
+  } catch (e) {
+    console.error(e)
+  } finally {
+    channelLoading.value = false
+  }
+}
+
+function closeChannel() {
+  activeChannel.value = null
+  channelNext.value = null
+  tracks.value = savedTracks
+}
+
+// ============================== //
+
 function onResults(results) {
+  activeChannel.value = null
+  channelNext.value = null
   tracks.value = results
   listTitle.value = 'Trending Sekarang'
 }
@@ -497,6 +650,165 @@ h1 {
   text-transform: uppercase;
   color: var(--text-muted);
   margin: 0 0 12px 4px;
+}
+
+/* ===== Hasil channel ===== */
+.channel-results {
+  margin-bottom: 24px;
+}
+
+.channel-block {
+  margin-bottom: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.channel-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.channel-header:hover {
+  background: var(--surface-hover);
+}
+
+.channel-header img {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.channel-name {
+  flex: 1;
+  min-width: 0;
+  font: 600 15px 'Inter', sans-serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.see-all {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  font: 500 12px 'Inter', sans-serif;
+  color: var(--brass);
+}
+
+.preview-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 6px 6px;
+}
+
+.preview-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.preview-list li:hover,
+.preview-list li.active {
+  background: var(--surface-hover);
+}
+
+.preview-list li.active .p-title {
+  color: var(--brass);
+}
+
+.preview-list img {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.p-title {
+  min-width: 0;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ===== Header saat membuka satu channel ===== */
+.channel-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.channel-head img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.channel-head h2 {
+  margin: 0;
+  min-width: 0;
+  font: 600 20px 'Fraunces', serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.back-btn:hover {
+  border-color: var(--brass);
+}
+
+.load-more {
+  display: flex;
+  margin: 16px auto 0;
+  padding: 8px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  font: 500 13px 'Inter', sans-serif;
+  cursor: pointer;
+}
+
+.load-more:hover:not(:disabled) {
+  border-color: var(--brass);
+}
+
+.load-more:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 @media (max-width: 720px) {

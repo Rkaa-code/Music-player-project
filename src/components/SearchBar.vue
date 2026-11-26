@@ -13,7 +13,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 
-const emit = defineEmits(['results', 'searching'])
+const emit = defineEmits(['results', 'searching', 'query'])
 const query = ref('')
 const API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY
 const MAX_RESULTS = 100
@@ -62,6 +62,9 @@ async function fetchDurations(items) {
 async function search() {
   const keyword = query.value.trim()
 
+  // kabari App.vue soal kata kunci terbaru (kosong = blok channel dihapus)
+  emit('query', keyword)
+
   if (!keyword) {
     emit('searching', false)
     fetchTrending()
@@ -70,7 +73,6 @@ async function search() {
 
   emit('searching', true)
 
-// di search()
   const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(
     keyword
   )}&type=video&videoCategoryId=10&maxResults=${MAX_RESULTS}&key=${API_KEY}`
@@ -84,7 +86,6 @@ async function search() {
 }
 
 async function fetchTrending() {
-// di fetchTrending()
   const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet&chart=mostPopular&videoCategoryId=10&regionCode=ID&maxResults=${MAX_RESULTS}&key=${API_KEY}`
 
   const res = await fetch(url)
@@ -126,6 +127,7 @@ onMounted(() => {
 
 input {
   flex: 1;
+  min-width: 0;
   padding: 10px 0;
   border: none;
   background: transparent;
@@ -154,5 +156,12 @@ button {
 
 button:hover {
   filter: brightness(1.1);
+}
+
+/* font 16px di HP supaya iOS tidak zoom otomatis saat input difokus */
+@media (max-width: 720px) {
+  input {
+    font-size: 16px;
+  }
 }
 </style>
