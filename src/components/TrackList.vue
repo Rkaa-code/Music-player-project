@@ -23,6 +23,15 @@
         </div>
 
         <span class="duration">{{ item.duration || '0:00' }}</span>
+
+        <button
+          class="more-btn"
+          title="Menu"
+          aria-label="Menu lagu"
+          @click.stop="openMenu($event, item)"
+        >
+          <MoreVertical :size="18" :stroke-width="2" />
+        </button>
       </li>
     </ul>
 
@@ -76,7 +85,7 @@
 
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
-import { ChevronLeft, ChevronRight } from 'lucide-vue-next'
+import { ChevronLeft, ChevronRight, MoreVertical } from 'lucide-vue-next'
 import { useTrackMenu } from '../composables/useTrackMenu'
 
 const { openMenu } = useTrackMenu()
@@ -161,6 +170,8 @@ li {
   height: 56px;
   cursor: pointer;
   border-radius: 4px;
+  -webkit-touch-callout: none; /* cegah menu bawaan iOS saat ditekan lama */
+  -webkit-tap-highlight-color: transparent;
 }
 
 li:hover {
@@ -267,6 +278,40 @@ img {
   flex-shrink: 0;
 }
 
+/* tombol menu: HP tidak punya klik-kanan, jadi hanya tampil di perangkat sentuh */
+.more-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.more-btn:hover,
+.more-btn:active {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+.more-btn:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 2px;
+}
+
+@media (hover: none) {
+  li {
+    grid-template-columns: 40px 40px 1fr auto 36px;
+    gap: 10px;
+  }
+  .more-btn {
+    display: flex;
+  }
+}
+
 /* ===== Pagination ===== */
 .pagination {
   display: flex;
@@ -361,13 +406,48 @@ img {
   color: var(--text-muted);
 }
 
+/* ===== HP ===== */
 @media (max-width: 640px) {
+  li {
+    padding: 8px 4px;
+    gap: 8px;
+    grid-template-columns: 24px 40px 1fr auto;
+  }
+
+  .index {
+    font-size: 12px;
+  }
+
   .pagination {
     justify-content: center;
+    padding: 12px 4px 0;
+  }
+
+  .pager {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .pg-btn {
+    min-width: 36px;
+    height: 36px;
+  }
+
+  /* font 16px supaya iOS tidak zoom saat select disentuh */
+  .per-page select {
+    font-size: 16px;
+    padding: 6px 10px;
   }
 
   .range {
     display: none;
+  }
+}
+
+/* ===== HP: layar sentuh kecil -> index | thumb | info | durasi | menu ===== */
+@media (max-width: 640px) and (hover: none) {
+  li {
+    grid-template-columns: 24px 40px 1fr auto 36px;
   }
 }
 </style>

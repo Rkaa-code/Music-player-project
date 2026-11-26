@@ -1,8 +1,11 @@
 <template>
-  <aside class="playlist-sidebar">
+  <aside class="playlist-sidebar" :class="{ open }">
     <div v-if="!selected" class="sidebar-view">
       <div class="sidebar-header">
         <h2>Playlist</h2>
+        <button class="icon-btn close-btn" title="Tutup" aria-label="Tutup playlist" @click="emit('close')">
+          <X :size="18" :stroke-width="2" />
+        </button>
       </div>
 
       <form class="new-playlist-form" @submit.prevent="handleCreate">
@@ -45,6 +48,10 @@
             <Pencil :size="13" :stroke-width="2" />
           </button>
         </template>
+
+        <button class="icon-btn close-btn" title="Tutup" aria-label="Tutup playlist" @click="emit('close')">
+          <X :size="18" :stroke-width="2" />
+        </button>
       </div>
 
       <button class="play-all-btn" :disabled="selected.tracks.length === 0" @click="handlePlayAll">
@@ -85,6 +92,14 @@
               <span class="track-channel">{{ track.snippet?.channelTitle }}</span>
             </div>
             <button
+              class="icon-btn more-btn"
+              title="Menu"
+              aria-label="Menu lagu"
+              @click.stop="openMenu($event, track, selected)"
+            >
+              <MoreVertical :size="16" :stroke-width="2" />
+            </button>
+            <button
               class="icon-btn danger"
               title="Hapus dari playlist"
               @click="removeTrackFromPlaylist(selected.id, trackKey(track))"
@@ -101,15 +116,17 @@
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
 import draggable from 'vuedraggable'
-import { GripVertical, Pencil } from 'lucide-vue-next'
+import { GripVertical, Pencil, X, MoreVertical } from 'lucide-vue-next'
 import ImportPlaylist from './ImportPlaylist.vue'
 import { usePlaylists, trackKey } from '../composables/usePlaylists'
 import { useTrackMenu } from '../composables/useTrackMenu'
 
 defineProps({
+  // dipakai di layar kecil: sidebar jadi drawer yang digeser masuk
+  open: { type: Boolean, default: false },
   playingId: { type: String, default: null },
 })
-const emit = defineEmits(['play'])
+const emit = defineEmits(['play', 'close'])
 
 const { openMenu } = useTrackMenu()
 
@@ -231,7 +248,7 @@ function cancelRename() {
 .sidebar-header { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
 .sidebar-header h2 { font-family: 'Fraunces', serif; font-size: 18px; margin: 0; color: var(--text); }
 .new-playlist-form { display: flex; gap: 6px; margin-bottom: 12px; }
-.new-playlist-form input { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; color: var(--text); font-size: 13px; }
+.new-playlist-form input { flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; color: var(--text); font-size: 13px; }
 .new-playlist-form button { background: var(--brass); border: none; border-radius: 6px; width: 28px; color: var(--bg); font-weight: 600; cursor: pointer; }
 .new-playlist-form button:disabled { opacity: 0.4; cursor: not-allowed; }
 .empty-hint { color: var(--text-muted); font-size: 12px; text-align: center; padding: 20px 8px; }
@@ -244,6 +261,10 @@ function cancelRename() {
 .icon-btn { background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 13px; line-height: 1; padding: 4px; border-radius: 4px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
 .icon-btn:hover { color: var(--text); background: var(--bg); }
 .icon-btn.danger:hover { color: var(--coral); }
+
+/* tombol tutup & menu hanya muncul saat dibutuhkan (layar kecil / layar sentuh) */
+.close-btn { display: none; margin-left: auto; }
+.more-btn { display: none; }
 
 .detail-header { gap: 6px; }
 .detail-title {
@@ -280,6 +301,7 @@ function cancelRename() {
   padding: 6px 8px;
   border-radius: 8px;
   background: var(--surface);
+  -webkit-touch-callout: none;
 }
 .track-row:hover { background: var(--surface-hover); }
 .track-row.active { background: var(--surface-hover); outline: 1px solid var(--brass); }
@@ -304,15 +326,57 @@ function cancelRename() {
 .thumb-empty { background: var(--bg); }
 .track-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; cursor: pointer; }
 .track-title { font-size: 12.5px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.track-channel { font-size: 11px; color: var(--text-muted); }
+.track-channel { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* layar sentuh tidak punya klik-kanan, jadi tombol menu ditampilkan */
+@media (hover: none) {
+  .more-btn { display: flex; }
+}
+
+/* ===== HP: sidebar jadi drawer yang digeser masuk dari kiri ===== */
 @media (max-width: 720px) {
   .playlist-sidebar {
-    position: static;
-    width: 100%;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 20px; /* di HP sidebar ikut alur halaman, tidak fixed, jadi tidak perlu ruang untuk player bar */
+    width: min(85vw, 320px);
+    height: 100dvh;
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform 0.25s ease, visibility 0s linear 0.25s;
+    z-index: 100;
+    /* drawer menutupi player bar, jadi tidak perlu ruang ekstra untuk player */
+    padding:
+      calc(20px + env(safe-area-inset-top))
+      14px
+      calc(20px + env(safe-area-inset-bottom));
+    overscroll-behavior: contain;
   }
+
+  .playlist-sidebar.open {
+    transform: translateX(0);
+    visibility: visible;
+    transition: transform 0.25s ease, visibility 0s;
+    box-shadow: 8px 0 30px rgba(0, 0, 0, 0.5);
+  }
+
+  .close-btn { display: flex; }
+
+  /* font 16px supaya iOS tidak zoom otomatis saat input difokus */
+  .new-playlist-form input,
+  .rename-form input { font-size: 16px; padding: 8px 10px; }
+  .new-playlist-form button { width: 40px; font-size: 18px; }
+
+  /* target sentuh lebih besar */
+  .icon-btn { min-width: 36px; min-height: 36px; }
+  .playlist-row { padding: 12px 10px; }
+  .playlist-name { font-size: 14px; }
+  .track-row { padding: 8px; gap: 6px; }
+  .thumb { width: 40px; height: 40px; }
+  .track-title { font-size: 14px; }
+  .track-channel { font-size: 12px; }
+  .play-all-btn { padding: 12px; font-size: 14px; }
+  .drag-handle { padding: 10px 4px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .playlist-sidebar { transition: none; }
 }
 </style>

@@ -41,21 +41,27 @@
             class="ctrl-btn"
             :class="{ active: shuffle }"
             title="Acak"
+            aria-label="Acak"
             @click="$emit('toggle-shuffle')"
           >
             <Shuffle :size="16" :stroke-width="2" />
           </button>
 
-          <button class="ctrl-btn" title="Sebelumnya" @click="$emit('prev')">
+          <button class="ctrl-btn" title="Sebelumnya" aria-label="Sebelumnya" @click="$emit('prev')">
             <SkipBack :size="18" :stroke-width="2" fill="currentColor" />
           </button>
 
-          <button class="play-btn" :class="{ active: isPlaying }" @click="$emit('toggle-play')">
+          <button
+            class="play-btn"
+            :class="{ active: isPlaying }"
+            :aria-label="isPlaying ? 'Jeda' : 'Putar'"
+            @click="$emit('toggle-play')"
+          >
             <Pause v-if="isPlaying" :size="15" fill="currentColor" :stroke-width="0" />
             <Play v-else :size="15" fill="currentColor" :stroke-width="0" class="play-icon" />
           </button>
 
-          <button class="ctrl-btn" title="Selanjutnya" @click="$emit('next')">
+          <button class="ctrl-btn" title="Selanjutnya" aria-label="Selanjutnya" @click="$emit('next')">
             <SkipForward :size="18" :stroke-width="2" fill="currentColor" />
           </button>
 
@@ -63,6 +69,7 @@
             class="ctrl-btn repeat-btn"
             :class="{ active: repeatMode !== 'off' }"
             title="Ulangi"
+            aria-label="Ulangi"
             @click="$emit('cycle-repeat')"
           >
             <Repeat1 v-if="repeatMode === 'one'" :size="16" :stroke-width="2" />
@@ -75,6 +82,7 @@
           <input
             type="range"
             class="seek-bar"
+            aria-label="Posisi lagu"
             min="0"
             :max="duration || 0"
             :value="currentTime"
@@ -92,6 +100,7 @@
           class="ctrl-btn lyrics-btn"
           :class="{ active: lyricsOpen }"
           title="Lirik"
+          aria-label="Lirik"
           @click="$emit('toggle-lyrics')"
         >
           <Mic2 :size="16" :stroke-width="2" />
@@ -101,6 +110,7 @@
           class="ctrl-btn queue-btn"
           :class="{ active: queueOpen }"
           title="Antrian"
+          aria-label="Antrian"
           @click="$emit('toggle-queue')"
         >
           <ListOrdered :size="16" :stroke-width="2" />
@@ -115,6 +125,7 @@
           <input
             type="range"
             class="volume-bar"
+            aria-label="Volume"
             min="0"
             max="100"
             :value="volume"
@@ -141,7 +152,6 @@ import {
   Volume1,
   VolumeX,
   Mic2,
-  ListMusic,
   ListOrdered,
   ChevronDown,
   ChevronUp,
@@ -517,6 +527,7 @@ const seekPercent = computed(() => {
   border-radius: 50%;
   position: relative;
   transition: color 0.15s ease, transform 0.1s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .ctrl-btn:hover {
@@ -541,6 +552,7 @@ const seekPercent = computed(() => {
   justify-content: center;
   flex-shrink: 0;
   transition: filter 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .play-btn:hover {
@@ -612,6 +624,27 @@ input[type='range']:focus-visible {
   outline-offset: 2px;
 }
 
+/* layar sentuh: area sentuh slider diperbesar (garis tetap tipis lewat background-clip),
+   dan thumb dibuat lebih besar supaya mudah digeser dengan jari */
+@media (pointer: coarse) {
+  input[type='range'] {
+    box-sizing: content-box;
+    padding: 10px 0;
+    background-clip: content-box;
+    touch-action: pan-y;
+  }
+
+  input[type='range']::-webkit-slider-thumb {
+    width: 18px;
+    height: 18px;
+  }
+
+  input[type='range']::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+  }
+}
+
 .seek-bar {
   flex: 1;
 }
@@ -665,7 +698,8 @@ input[type='range']:focus-visible {
 @media (max-width: 640px) {
   .player-bar {
     height: auto;
-    padding: 8px 0 6px;
+    /* padding bawah ikut area aman supaya tidak tertutup garis home iPhone */
+    padding: 8px 0 calc(6px + env(safe-area-inset-bottom));
   }
 
   .player-bar-inner {
@@ -675,9 +709,9 @@ input[type='range']:focus-visible {
       "seek seek seek seek"
       "now  ctrl ctrl right";
     align-items: center;
-    row-gap: 6px;
+    row-gap: 2px;
     column-gap: 8px;
-    padding: 0 10px;
+    padding: 0 max(10px, env(safe-area-inset-left)) 0 max(10px, env(safe-area-inset-right));
     max-width: none;
   }
 
@@ -738,29 +772,30 @@ input[type='range']:focus-visible {
 
   .controls-row {
     grid-area: ctrl;
-    gap: 10px;
+    gap: 4px;
     justify-content: center;
   }
 
+  /* tombol dibuat 32px (lebih mudah ditekan jari) tapi jarak antartombol dirapatkan */
   .ctrl-btn {
-    width: 24px;
-    height: 24px;
+    width: 32px;
+    height: 32px;
   }
 
   .play-btn {
-    width: 30px;
-    height: 30px;
+    width: 36px;
+    height: 36px;
   }
 
   .right-group {
     grid-area: right;
-    gap: 6px;
+    gap: 2px;
   }
 
   .lyrics-btn,
   .queue-btn {
-    width: 26px;
-    height: 26px;
+    width: 32px;
+    height: 32px;
   }
 
   .volume {
@@ -775,11 +810,11 @@ input[type='range']:focus-visible {
   }
 
   .controls-row {
-    gap: 6px;
+    gap: 2px;
   }
 
   .right-group {
-    gap: 4px;
+    gap: 0;
   }
 }
 </style>

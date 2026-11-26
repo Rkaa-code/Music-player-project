@@ -1,5 +1,12 @@
 <template>
-  <PlaylistSidebar :playing-id="currentTrack?.id?.videoId" @play="onPlaylistPlay" />
+  <PlaylistSidebar
+    :open="sidebarOpen"
+    :playing-id="currentTrack?.id?.videoId"
+    @play="onPlaylistPlay"
+    @close="sidebarOpen = false"
+  />
+  <!-- latar gelap di belakang drawer (hanya tampil di HP) -->
+  <div v-if="sidebarOpen" class="backdrop" @click="sidebarOpen = false"></div>
 
   <div class="app">
     <ContextMenu
@@ -9,8 +16,13 @@
       @detail="(t) => (detailTrack = t)"
     />
     <header class="app-header">
-      <span class="eyebrow">Now Browsing</span>
-      <h1>LRMP</h1>
+      <button class="menu-btn" aria-label="Buka playlist" @click="sidebarOpen = true">
+        <Menu :size="22" :stroke-width="2" />
+      </button>
+      <div class="app-title">
+        <span class="eyebrow">Now Browsing</span>
+        <h1>LRMP</h1>
+      </div>
     </header>
 
     <SearchBar @results="onResults" @searching="isSearching = $event" />
@@ -48,7 +60,7 @@
       @toggle-shuffle="toggleShuffle"
       @cycle-repeat="cycleRepeat"
       @show-detail="detailTrack = currentTrack"
-      @toggle-lyrics="lyricsOpen = !lyricsOpen"
+      @toggle-lyrics="toggleLyrics"
     />
 
     <QueuePanel
@@ -79,7 +91,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { Menu } from 'lucide-vue-next'
 import SearchBar from './components/SearchBar.vue'
 import TrackList from './components/TrackList.vue'
 import PlayerBar from './components/PlayerBar.vue'
@@ -92,11 +105,16 @@ import { useYoutubeMatch } from './composables/useYoutubeMatch'
 import { searchYoutube } from './api/youtube'
 import QueuePanel from './components/QueuePanel.vue'
 import { useQueue } from './composables/useQueue'
+import { useMediaSession } from './composables/useMediaSession'
 
+let keepPlaying = false
 
 const { resolveTrack } = useYoutubeMatch(searchYoutube)
 
 const queueOpen = ref(false)
+
+// drawer playlist (dipakai di layar kecil; di desktop sidebar selalu tampil)
+const sidebarOpen = ref(false)
 
 let originalQueue = []
 let playToken = 0
@@ -139,7 +157,65 @@ const {
   playAt: (i) => playSafe(queue.value[i], 1),
 })
 
-onMounted(() => initPlayer())
+// ===== drawer: kunci scroll halaman saat terbuka, tutup dengan Esc / saat layar melebar =====
+const mobileQuery = window.matchMedia('(max-width: 720px)')
+
+// ---------------------------------------------------------------------------------- //
+
+useMediaSession({
+  track: currentTrack,
+  isPlaying,
+  currentTime,
+  duration,
+  handlers: {
+    play: () => { if (!isPlaying.value) togglePlay() },
+    pause: () => { keepPlaying = false; if (isPlaying.value) togglePlay() },
+    prev: playPrevious,
+    next: playNext,
+    seek: seekTo,
+  },
+})
+
+watch(sidebarOpen, (open) => {
+  document.body.style.overflow = open && mobileQuery.matches ? 'hidden' : ''
+})
+
+function onVisibility() {
+  keepPlaying = document.hidden ? isPlaying.value : false
+}
+
+watch(isPlaying, (playing) => {
+  if (playing || !document.hidden || !keepPlaying) return
+  setTimeout(() => {
+    if (document.hidden && keepPlaying && !isPlaying.value) togglePlay()
+  }, 300)
+})
+
+onMounted(() => document.addEventListener('visibilitychange', onVisibility))
+onBeforeUnmount(() => document.removeEventListener('visibilitychange', onVisibility))
+
+// ----------------------------------------------------------------------------------- //
+
+function onKeydown(e) {
+  if (e.key === 'Escape') sidebarOpen.value = false
+}
+
+function onBreakpointChange(e) {
+  if (!e.matches) sidebarOpen.value = false
+}
+
+
+onMounted(() => {
+  initPlayer()
+  window.addEventListener('keydown', onKeydown)
+  mobileQuery.addEventListener('change', onBreakpointChange)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
+  mobileQuery.removeEventListener('change', onBreakpointChange)
+  document.body.style.overflow = ''
+})
 
 onEnded(() => {
   if (repeatMode.value === 'one') {
@@ -201,6 +277,7 @@ function onSelect(track) {
 function onPlaylistPlay(track, playlist) {
   setQueue(playlist.tracks, track)
   playSafe(track)
+  sidebarOpen.value = false // di HP, tutup drawer setelah lagu dipilih
 }
 
 function onMenuPlay(track, playlist) {
@@ -315,10 +392,18 @@ async function playSafe(track, step = 1, attempts = 0) {
   box-sizing: border-box;
 }
 
+html {
+  /* cegah teks membesar sendiri saat HP diputar landscape */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .app {
@@ -326,12 +411,40 @@ body {
   max-width: 900px;
   margin: 0 auto;
   margin-left: 260px;
-  padding: 24px clamp(16px, 4vw, 48px) 130px;
+  /* ruang bawah mengikuti tinggi player bar (--player-h dari PlayerBar) */
+  padding: 24px clamp(16px, 4vw, 48px) calc(var(--player-h, 0px) + 40px);
   font-family: 'Inter', sans-serif;
 }
 
 .app-header {
   margin-bottom: 28px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* tombol hamburger: hanya tampil di HP */
+.menu-btn {
+  display: none;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.menu-btn:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 2px;
+}
+
+.backdrop {
+  display: none;
 }
 
 .eyebrow {
@@ -374,6 +487,27 @@ h1 {
 @media (max-width: 720px) {
   .app {
     margin-left: 0;
+    padding: calc(16px + env(safe-area-inset-top)) 14px calc(var(--player-h, 0px) + 32px);
+  }
+
+  .app-header {
+    margin-bottom: 20px;
+  }
+
+  h1 {
+    font-size: 26px;
+  }
+
+  .menu-btn {
+    display: inline-flex;
+  }
+
+  .backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 90;
   }
 }
 </style>

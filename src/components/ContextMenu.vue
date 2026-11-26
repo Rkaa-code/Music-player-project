@@ -8,6 +8,8 @@
       :style="{ left: pos.x + 'px', top: pos.y + 'px' }"
       @contextmenu.prevent
     >
+      <div class="ctx-grabber" aria-hidden="true"></div>
+
       <template v-if="page === 'main'">
         <button class="ctx-item" role="menuitem" @click="act('play')">▶ Putar sekarang</button>
         <button class="ctx-item" role="menuitem" @click="act('play-next')">Putar berikutnya</button>
@@ -73,7 +75,8 @@ watch(() => menu.openId, () => {
   page.value = 'main'
 })
 
-// posisi mengikuti kursor, tapi dijaga supaya tidak keluar layar
+// posisi mengikuti kursor/jari, tapi dijaga supaya tidak keluar layar.
+// (di HP menu tampil sebagai bottom sheet lewat CSS, jadi posisi ini diabaikan di sana)
 watch(
   () => [menu.visible, menu.openId, page.value],
   ([visible]) => {
@@ -92,6 +95,8 @@ watch(
 )
 
 // --- tutup menu: klik di luar, Esc, scroll, resize, pindah tab/jendela ---
+let lastWidth = 0
+
 function onPointerDown(e) {
   if (!menuEl.value?.contains(e.target)) closeMenu()
 }
@@ -101,12 +106,17 @@ function onScroll(e) {
 function onKeydown(e) {
   if (e.key === 'Escape') closeMenu()
 }
+// di HP, address bar yang naik/turun memicu resize (tinggi berubah), jadi hanya tutup kalau LEBAR berubah
+function onResize() {
+  if (window.innerWidth !== lastWidth) closeMenu()
+}
 function bind(on) {
   const m = on ? 'addEventListener' : 'removeEventListener'
+  if (on) lastWidth = window.innerWidth
   window[m]('pointerdown', onPointerDown, true)
   window[m]('scroll', onScroll, true)
   window[m]('keydown', onKeydown)
-  window[m]('resize', closeMenu)
+  window[m]('resize', onResize)
   window[m]('blur', closeMenu)
 }
 watch(() => menu.visible, (v) => bind(v))
@@ -161,6 +171,7 @@ function removeFromCurrent() {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
   font-family: 'Inter', sans-serif;
 }
+.ctx-grabber { display: none; }
 .ctx-item {
   display: flex;
   align-items: center;
@@ -183,4 +194,38 @@ function removeFromCurrent() {
 .ctx-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ctx-muted { color: var(--text-muted); }
 .ctx-empty { margin: 0; padding: 8px 10px; font-size: 12px; color: var(--text-muted); }
+
+/* ===== HP: menu tampil sebagai bottom sheet di dasar layar ===== */
+@media (max-width: 720px) {
+  .ctx-menu {
+    /* !important karena posisi desktop datang dari inline style */
+    left: 0 !important;
+    right: 0;
+    top: auto !important;
+    bottom: 0;
+    width: 100%;
+    max-height: 75dvh;
+    padding: 6px 10px calc(10px + env(safe-area-inset-bottom));
+    border-radius: 16px 16px 0 0;
+    border-bottom: none;
+    box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.6);
+    overscroll-behavior: contain;
+  }
+
+  .ctx-grabber {
+    display: block;
+    width: 36px;
+    height: 4px;
+    margin: 6px auto 10px;
+    border-radius: 2px;
+    background: var(--border);
+  }
+
+  .ctx-item {
+    padding: 14px 12px;
+    font-size: 15px;
+  }
+
+  .ctx-empty { font-size: 14px; padding: 12px; }
+}
 </style>
